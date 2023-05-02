@@ -24,22 +24,44 @@ class Model_01(nn.Module):
 
         self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
 
+        self.conv5 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
+        self.bn5 = nn.BatchNorm2d(128)
+
+        self.conv6 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
+        self.bn6 = nn.BatchNorm2d(128)
+
+        self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv7 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
+        self.bn7 = nn.BatchNorm2d(256)
+
+        self.conv8 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.bn8 = nn.BatchNorm2d(256)
+
+        self.maxpool4 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.conv9 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
+        self.bn9 = nn.BatchNorm2d(256)
+
+        self.maxpool5 = nn.MaxPool2d(kernel_size=2, stride=2)
+
         self.dropout1 = nn.Dropout(p = 0.5)
-        self.fc1 = nn.Linear(64 * 8 * 8, 512)
-        self.bn5 = nn.BatchNorm1d(512)
+        self.fc1 = nn.Linear(256 * 7 * 7, 512)
+        self.bn10 = nn.BatchNorm1d(512)
 
         self.dropout2 = nn.Dropout(p = 0.5)
         self.fc2 = nn.Linear(512, 512)
-        self.bn6 = nn.BatchNorm1d(512)
-        self.dropout3 = nn.Dropout(p = 0.5)
+        self.bn11 = nn.BatchNorm1d(512)
 
+        self.dropout3 = nn.Dropout(p = 0.5)
         self.fc3 = nn.Linear(512, 4)
 
     def forward(self, x):
-        # Konvolucijski slojevi
+        # Convolutional layers
         x = self.conv1(x)
         x = self.bn1(x)
         x = F.relu(x)
+
         x = self.conv2(x)
         x = self.bn2(x)
         x = F.relu(x)
@@ -53,18 +75,45 @@ class Model_01(nn.Module):
         x = self.conv4(x)
         x = self.bn4(x)
         x = F.relu(x)
+
         x = self.maxpool2(x)
 
-        # Linearni slojevi
+        x = self.conv5(x)
+        x = self.bn5(x)
+        x = F.relu(x)
+
+        x = self.conv6(x)
+        x = self.bn6(x)
+        x = F.relu(x)
+
+        x = self.maxpool3(x)
+
+        x = self.conv7(x)
+        x = self.bn7(x)
+        x = F.relu(x)
+
+        x = self.conv8(x)
+        x = self.bn8(x)
+        x = F.relu(x)
+
+        x = self.maxpool4(x)
+
+        x = self.conv9(x)
+        x = self.bn9(x)
+        x = F.relu(x)
+
+        x = self.maxpool5(x)
+
+        # Linear layers
         x = x.view(x.size(0), -1)
         x = self.dropout1(x)
         x = self.fc1(x)
-        x = self.bn5(x)
+        x = self.bn10(x)
         x = F.relu(x)
 
         x = self.dropout2(x)
         x = self.fc2(x)
-        x = self.bn6(x)
+        x = self.bn11(x)
         x = F.relu(x)
         x = self.dropout3(x)
         x = self.fc3(x)
