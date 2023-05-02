@@ -70,6 +70,3 @@ class Model_01(nn.Module):
         x = self.fc3(x)
         x = F.log_softmax(x, dim=1)
         return x
-    # Kod Cifara model vraća otprilike 80% točnosti u 30 epoha. 87,75% nakon 200 epoha. Rekord je inače preko 99%. ;)
-    # Namjerno je ostao praktički identičan model kao i kod MNIST-a da vidite koliko jako ovisi dataset na treniranje.
-    # Promjenjen je samo ulaz i broj parametara u prvi linearni sloj.
