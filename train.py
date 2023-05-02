@@ -14,6 +14,8 @@ from torchvision.datasets.folder import default_loader, DatasetFolder
 from torch.utils.data import random_split
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from img_aug_transform import ImgAugTransform
+from util import get_mean_std_of_pixel_values
 
 import models
 
@@ -79,7 +81,7 @@ def show_dataset(dataset: DatasetFolder, n=6) -> None:
     plt.show()
 
 
-def show_images(dataset_loader: DataLoader , num_of_images: int) -> None:
+def show_images(dataset_loader: DataLoader , num_of_images: int = 9) -> None:
     """Displays images before feeding them to the model
 
     :raises AssertionError: If number of images to display exceeds batch size
@@ -94,16 +96,16 @@ def show_images(dataset_loader: DataLoader , num_of_images: int) -> None:
         data_iter = iter(dataset_loader)
         images, labels = next(data_iter)
 
-        for index in range(1, num_of_images + 1):
-            plt.subplot(2, 10, index)
-            plt.axis('off')
-            plt.title(str(labels.numpy()[index]))
-
-            # imshow function expects an image with the shape (height, width, channels)
-            img = images[index].numpy().transpose((1, 2, 0)).squeeze()
-            # img = (img - np.min(img)) / (np.max(img) - np.min(img))
+        plt.figure(figsize=(10, 10))
+        transform = torchvision.transforms.ToPILImage()
+        for i in range(num_of_images):
+            ax = plt.subplot(3, 3, i + 1)
+            img = np.asarray(transform(images[i]))
             plt.imshow(img)
+            plt.axis('off')
+
         plt.show()
+
     except AssertionError as msg:
         print("Error:", msg)
 
@@ -126,17 +128,24 @@ def train():
     print(device)
 
     batch_size = 32
-    epochs = 30
+    epochs = 5
+    seed = 255
 
     writer = SummaryWriter('runs/model_01')
+
+    root_dir = "data/plant_dataset_original/plant_diseases_images"
+
+    # normalize_mean, normalize_std = get_mean_std_of_pixel_values(root_dir)
+    # print("Mean: ", normalize_mean) [0.44050441, 0.47175582, 0.4283929 ]
+    # print("Std: ", normalize_std) [0.16995976, 0.14400921, 0.19573698]
+    # original values: (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
 
     dataset_transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224)),
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        torchvision.transforms.Normalize((0.44050441, 0.47175582, 0.4283929), (0.16995976, 0.14400921, 0.19573698))
     ])
 
-    root_dir = "data/plant_dataset_original/plant_diseases_images"
     dataset = CustomImageFolder(root=root_dir, loader=default_loader, transform=dataset_transforms)
     show_dataset(dataset)
 
@@ -145,17 +154,22 @@ def train():
     test_size = len(dataset) - train_size - val_size
 
     # Split the dataset
-    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
+    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size],
+                                                            generator=torch.Generator().manual_seed(seed))
 
     print(f"Number of training samples: {len(train_dataset)}")
     print(f"Number of validation samples: {len(val_dataset)}")
     print(f"Number of test samples: {len(test_dataset)}")
 
     train_transforms = torchvision.transforms.Compose([
-        torchvision.transforms.RandomCrop(32, padding=4),
-        torchvision.transforms.ColorJitter(hue=.05, saturation=.05),
+        torchvision.transforms.CenterCrop(224),
+        torchvision.transforms.RandomResizedCrop(224),
+        torchvision.transforms.RandomCrop(224),
+        torchvision.transforms.ColorJitter(brightness=.05, contrast=0.5, saturation=.05),
         torchvision.transforms.RandomHorizontalFlip(),
-        torchvision.transforms.RandomRotation(10, interpolation=torchvision.transforms.InterpolationMode.BILINEAR),
+        torchvision.transforms.RandomVerticalFlip(),
+        torchvision.transforms.RandomRotation(20, interpolation=torchvision.transforms.InterpolationMode.BILINEAR,
+                                              expand=False),
         torchvision.transforms.RandomGrayscale(),
         torchvision.transforms.Resize((224, 224)),
         torchvision.transforms.ToTensor(),
@@ -165,35 +179,42 @@ def train():
     train_dataset.dataset.transform = train_transforms
     show_dataset(train_dataset)
 
-
-
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
-                                               num_workers=2, pin_memory=True)
+                                               num_workers=2, pin_memory=True,
+                                               generator=torch.Generator().manual_seed(seed))
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True,
-                                             num_workers=2, pin_memory=True)
+                                             num_workers=2, pin_memory=True,
+                                             generator=torch.Generator().manual_seed(seed))
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True,
-                                              num_workers=2, pin_memory=True)
+                                              num_workers=2, pin_memory=True,
+                                              generator=torch.Generator().manual_seed(seed))
 
     images_shape, labels_shape = loader_shape(train_loader)
     print(f'Images shape: {images_shape}\nLabels shape: {labels_shape}')
 
-    show_images(train_loader, num_of_images=20)
+    show_images(train_loader)
 
     model = models.Model_01().to(device)
     loss_fn = nn.NLLLoss().to(device)
+
+    # optimizer = optim.SGD(model.parameters(), lr=0.003, momentum=0.9)
     optimizer = optim.RMSprop(model.parameters())
 
+    best_val_acc = 0.0
     train_per_epoch = int(len(train_dataset) / batch_size)
     for e in range(epochs):
         loop = tqdm(enumerate(train_loader), total=len(train_loader), leave=True)
 
         for idx, (images, labels) in loop:
+            # images = images.to(device, non_blocking=True).view(images.shape[0], -1)
             images = images.to(device, non_blocking=True)
             optimizer.zero_grad()
             output = model(images)
+
             labels = labels.to(device, non_blocking=True)
             loss = loss_fn(output, labels)
             loss.backward()
+
             optimizer.step()
 
             writer.add_scalar('loss', loss.item(), (e * train_per_epoch) + idx)
@@ -203,8 +224,59 @@ def train():
             loop.set_description(f"Epoch [{e}/{epochs}]")
             loop.set_postfix(loss=loss.item(), acc=accuracy)
             writer.add_scalar('acc', accuracy, (e * train_per_epoch) + idx)
+        # else:
+        #     torch.save({
+        #         'epoch': e,
+        #         'model_state_dict': model.state_dict(),
+        #         'optimzer_state_dict': optimizer.state_dict(),
+        #         'loss': loss_fn
+        #     }, 'path')
+
+        val_acc = 0.0
+        model.eval()
+        with torch.no_grad():
+            for x, y in val_loader:
+                x = x.to(device=device)
+                y = y.to(device=device)
+
+                scores = model(x)
+                _, predictions = scores.max(1)
+                val_acc += (predictions == y).sum().item()
+
+        val_acc /= len(val_dataset)
+        print(f'Epoch [{e}/{epochs}]: Validation accuracy = {val_acc:.4f}')
+
+        if val_acc > best_val_acc:
+            best_val_acc = val_acc
+            torch.save({
+                'epoch': e,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss_fn
+            }, 'model_state/best_val_model_state_gpu.pth')
 
 
+    num_correct = 0
+    num_samples = 0
+    model.eval()
+
+    with torch.no_grad():
+        for x, y in test_loader: # images, labels
+            # x = x.to(device, non_blocking=True).view(images.shape[0], -1)
+            x = x.to(device=device)
+            y = y.to(device=device)
+
+            scores = model(x)
+            _, predictions = scores.max(1)
+            num_correct += (predictions == y).sum()
+            num_samples += predictions.size(0)
+
+        print(f'Nummber of correct {num_correct} of total {num_samples} with accuracy of'
+              f' {float(num_correct) / float(num_samples) * 100:.2f}%')
+
+    # torch.save(model, '')
+    # loaded_model = torch.load('')
+    # print(model)
 
 if __name__ == '__main__':
     train()
