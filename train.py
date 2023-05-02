@@ -1,32 +1,40 @@
 import os
 
-
-from typing import List, Dict, Tuple, Callable, Optional, Any
+from typing import List, Dict, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-import torch.cuda
+import torch
+import re
 import torchvision.transforms
+
 from torchvision.datasets.folder import default_loader, DatasetFolder
 from torch.utils.data import random_split
-import re
 from torch.utils.data import DataLoader
-from util import rename_subdir
 
-def is_valid_file(filename: str) -> bool:
-    """Check if current file has valid extension """
+def valid_file(filename: str) -> bool:
+    """Check if current file has valid extension"""
 
     return filename.lower().endswith(('.jpg', '.png'))
 
 
 def find_classes(directory: str) -> Tuple[List[str], Dict[str, int]]:
-    """Find the class folders in a dataset.
-    See :class:`DatasetFolder` for details.
+    """Finds the class folders in a dataset.
 
-    Change the string inside regex search function to load plant specific classes
+    This function searches for subdirectories in the specified directory and returns a list of class names and
+    dictionary mapping each class name to its corresponding index.
 
-    :param directory: Root directory of the training dataset
+    The function only includes subdirectories whose names match the regular expression 'apple'. This is intended to
+    filter the classes for a specific type of dataset.
+
+    :param directory: The root directory of the training dataset.
+
+    :returns: A tuple containing a list of strings where each string is the name of a class folder and dictionary
+    that maps each class name to its corresponding index.
+
+    :raises FileNotFoundError: If no class folders are found in the specified directory.
     """
+
     classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir()
                      and re.search('apple', entry.name))
     if not classes:
@@ -42,15 +50,15 @@ class CustomImageFolder(torchvision.datasets.DatasetFolder):
 
     Enables two valid extensions (.jpg, .png)
     """
-    def __init__(self, root, transform=None, target_transform=None, loader=default_loader, is_valid_file=None):
-        super().__init__(root, transform=transform, target_transform=target_transform, loader=loader,
-                         extensions=('.jpg', '.png'), is_valid_file=is_valid_file)
+
+    def __init__(self, root, transform=None, target_transform=None, loader=default_loader, is_valid_file=valid_file):
+        super().__init__(root, transform=transform, target_transform=target_transform, loader=loader, is_valid_file=is_valid_file)
     def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
         return find_classes(directory)
 
 
 def show_dataset(dataset: DatasetFolder, n=6) -> None:
-    """Show grid of images as a single image
+    """Shows grid of images as a single image
 
     :param dataset: Loaded torchvision dataset
     :param n: Number of rows and columns
@@ -66,9 +74,9 @@ def show_dataset(dataset: DatasetFolder, n=6) -> None:
 
 
 def show_images(dataset_loader: DataLoader , num_of_images: int) -> None:
-    """Display images before feeding them to the model
+    """Displays images before feeding them to the model
 
-    Throws AssertionError if number of images to display exceeds batch size
+    :raises AssertionError: If number of images to display exceeds batch size
     """
 
     batch_size = dataset_loader.batch_size
@@ -80,7 +88,6 @@ def show_images(dataset_loader: DataLoader , num_of_images: int) -> None:
         data_iter = iter(dataset_loader)
         images, labels = next(data_iter)
 
-        figure = plt.figure()
         for index in range(1, num_of_images + 1):
             plt.subplot(2, 10, index)
             plt.axis('off')
@@ -96,9 +103,9 @@ def show_images(dataset_loader: DataLoader , num_of_images: int) -> None:
 
 
 def loader_shape(dataset_loader: DataLoader) -> Tuple[torch.Size, torch.Size]:
-    """Print shape of loaded dataset
+    """Prints shape of loaded dataset
 
-    :return: Tuple of tensor shapes (images, labels)
+    :returns: Tuple of tensor shapes (images, labels)
     """
 
     data_iter = iter(dataset_loader)
@@ -149,9 +156,12 @@ def train():
 
     batch_size = 32
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                                               num_workers=2, pin_memory=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True,
+                                             num_workers=2, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True,
+                                              num_workers=2, pin_memory=True)
 
     images_shape, labels_shape = loader_shape(train_loader)
     print(f'Images shape: {images_shape}\nLabels shape: {labels_shape}')
