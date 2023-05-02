@@ -1,7 +1,8 @@
 import os
 
 def rename_subdir(root_dir: str) -> None:
-    """Rename subdirectories to standard naming convention: plant_*_disease_*"""
+    """Renames subdirectories to standard naming convention: plant_*_disease_*"""
+
     for dir_name in os.listdir(root_dir):
         # Remove repetition of any word
         dir_name_target = ' '.join(sorted(set(dir_name.lower().split()), key=dir_name.lower().split().index))
@@ -19,7 +20,7 @@ def rename_subdir(root_dir: str) -> None:
 
 
 def print_subdir_name(root_dir: str) -> None:
-    """Print a list of subdirectories names"""
+    """Prints a list of subdirectories names"""
 
     subdirs = [os.path.basename(x) for x in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, x))]
     print(subdirs)
