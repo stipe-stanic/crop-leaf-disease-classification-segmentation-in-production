@@ -12,8 +12,9 @@ import torchvision.transforms
 from torch import nn, optim
 from torchvision.datasets.folder import default_loader, DatasetFolder
 from torch.utils.data import random_split
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
+from sklearn.model_selection import train_test_split
 from img_aug_transform import ImgAugTransform
 from util import get_mean_std_of_pixel_values
 
@@ -65,7 +66,7 @@ class CustomImageFolder(torchvision.datasets.DatasetFolder):
         return find_classes(directory)
 
 
-def show_dataset(dataset: DatasetFolder, n=6) -> None:
+def show_dataset(dataset: DatasetFolder | Subset, n=6) -> None:
     """Shows grid of images as a single image
 
     :param dataset: Loaded torchvision dataset
@@ -128,7 +129,7 @@ def train():
     print(device)
 
     batch_size = 32
-    epochs = 5
+    epochs = 6
     seed = 255
 
     writer = SummaryWriter('runs/model_01')
@@ -153,9 +154,56 @@ def train():
     val_size = int(len(dataset) * 0.1)
     test_size = len(dataset) - train_size - val_size
 
-    # Split the dataset
-    train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size],
-                                                            generator=torch.Generator().manual_seed(seed))
+    # Split the dataset -> using random splitting
+    # train_dataset, val_dataset, test_dataset = torch.utils.data.random_split(
+    # dataset, [train_size, val_size, test_size], generator=torch.Generator().manual_seed(seed))
+
+    # Split the dataset -> using sklearn split method with stratify
+    targets = np.array(dataset.targets)
+    train_idx, temp_idx = train_test_split(
+        np.arange(len(dataset)),
+        test_size=val_size + test_size,
+        shuffle=True,
+        stratify=targets,
+        random_state=seed
+    )
+
+    val_idx, test_idx = train_test_split(
+        temp_idx,
+        test_size=test_size,
+        shuffle=True,
+        stratify=targets[temp_idx],
+        random_state=seed
+    )
+
+    train_dataset = Subset(dataset, train_idx)
+    val_dataset = Subset(dataset, val_idx)
+    test_dataset = Subset(dataset, test_idx)
+
+    # Check distribution of classes in train, val and test datasets
+    # train_target_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=False)
+    # val_target_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    # test_target_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    #
+    # train_targets = []
+    # for batch in train_target_loader:
+    #     train_targets.extend(batch[1].tolist())
+    #
+    # val_targets = []
+    # for batch in val_target_loader:
+    #     val_targets.extend(batch[1].tolist())
+    #
+    # test_targets = []
+    # for batch in test_target_loader:
+    #     test_targets.extend(batch[1].tolist())
+    #
+    # train_counts = [train_targets.count(i) for i in range(len(dataset.classes))]
+    # val_counts = [val_targets.count(i) for i in range(len(dataset.classes))]
+    # test_counts = [test_targets.count(i) for i in range(len(dataset.classes))]
+    #
+    # print("Train class distribution:", train_counts)
+    # print("Val class distribution:", val_counts)
+    # print("Test class distribution:", test_counts)
 
     print(f"Number of training samples: {len(train_dataset)}")
     print(f"Number of validation samples: {len(val_dataset)}")
@@ -182,10 +230,10 @@ def train():
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
                                                num_workers=2, pin_memory=True,
                                                generator=torch.Generator().manual_seed(seed))
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=True,
+    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
                                              num_workers=2, pin_memory=True,
                                              generator=torch.Generator().manual_seed(seed))
-    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=True,
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False,
                                               num_workers=2, pin_memory=True,
                                               generator=torch.Generator().manual_seed(seed))
 
@@ -195,10 +243,15 @@ def train():
     show_images(train_loader)
 
     model = models.Model_01().to(device)
+    # print(model)
+
     loss_fn = nn.NLLLoss().to(device)
+    # loss_fn = nn.CrossEntropyLoss().to(device)
 
     # optimizer = optim.SGD(model.parameters(), lr=0.003, momentum=0.9)
-    optimizer = optim.RMSprop(model.parameters())
+    # optimizer = optim.RMSprop(model.parameters()) # default lr=0.01
+    optimizer = optim.Adamax(model.parameters(), lr=0.001, weight_decay=0.001)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=2)
 
     best_val_acc = 0.0
     train_per_epoch = int(len(train_dataset) / batch_size)
@@ -224,13 +277,16 @@ def train():
             loop.set_description(f"Epoch [{e}/{epochs}]")
             loop.set_postfix(loss=loss.item(), acc=accuracy)
             writer.add_scalar('acc', accuracy, (e * train_per_epoch) + idx)
-        # else:
-        #     torch.save({
-        #         'epoch': e,
-        #         'model_state_dict': model.state_dict(),
-        #         'optimzer_state_dict': optimizer.state_dict(),
-        #         'loss': loss_fn
-        #     }, 'path')
+        else:
+            torch.save({
+                'epoch': e,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': loss_fn
+            }, 'model_state/curr_best_model.pth')
+
+        scheduler.step()
+        print(scheduler.get_last_lr()[0])
 
         val_acc = 0.0
         model.eval()
