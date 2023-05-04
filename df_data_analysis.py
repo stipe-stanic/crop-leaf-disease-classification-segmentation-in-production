@@ -1,4 +1,5 @@
 import os
+import re
 from typing import List
 
 import matplotlib.pyplot as plt
@@ -34,6 +35,26 @@ def plot_images(root_path: str) -> None:
     plt.show()
 
 
+def print_class_distribution(root_path: str) -> None:
+    class_dirs_names = get_class_dirs(root_path)
+
+    unique_plants = set(name.split('_')[0] for name in class_dirs_names)
+    unique_diseases = set(' '.join(name.split('_')[1:]) for name in class_dirs_names if not re.search('healthy', name))
+
+
+    print(f'Unique plants are: \n{unique_plants}\n')
+    print(f'Unique disease are: \n{unique_diseases}\n')
+
+    dict_class_numbers = {
+        'Number of classes': len(class_dirs_names),
+        'Unique plants': len(unique_plants),
+        'Unique diseases': len(unique_diseases),
+        'Number of shared diseases': len(class_dirs_names) - len(unique_plants) - len(unique_diseases),
+    }
+
+    print(dict_class_numbers)
+
+
 if __name__ == '__main__':
     root_dir = 'data/plant_dataset_original/plant_diseases_images'
     plot_images(root_dir)
@@ -52,7 +73,7 @@ if __name__ == '__main__':
 
     df = pd.DataFrame(class_name_num_images_list)
     df_sorted = df.sort_values('number_of_images')
-    print(df_sorted)
+    print(df_sorted, '\n')
 
     plt.figure(figsize=(20, 15))
     plt.barh(df_sorted['class_name'], df_sorted['number_of_images'])
@@ -60,3 +81,5 @@ if __name__ == '__main__':
     plt.xlabel("Number of images")
     plt.ylabel("Class names")
     plt.show()
+
+    print_class_distribution(root_dir)

@@ -82,7 +82,7 @@ def show_dataset(dataset: DatasetFolder | Subset, n=6) -> None:
     plt.show()
 
 
-def show_images(dataset_loader: DataLoader , num_of_images: int = 9) -> None:
+def show_batch(dataset_loader: DataLoader , num_of_images: int = 9) -> None:
     """Displays images before feeding them to the model
 
     :raises AssertionError: If number of images to display exceeds batch size
@@ -240,7 +240,7 @@ def train():
     images_shape, labels_shape = loader_shape(train_loader)
     print(f'Images shape: {images_shape}\nLabels shape: {labels_shape}')
 
-    show_images(train_loader)
+    show_batch(train_loader)
 
     model = models.Model_01().to(device)
     # print(model)
@@ -254,17 +254,19 @@ def train():
     scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=2)
 
     best_val_acc = 0.0
+    loss = None
     train_per_epoch = int(len(train_dataset) / batch_size)
     for e in range(epochs):
         loop = tqdm(enumerate(train_loader), total=len(train_loader), leave=True)
-
+        model.train()
         for idx, (images, labels) in loop:
             # images = images.to(device, non_blocking=True).view(images.shape[0], -1)
             images = images.to(device, non_blocking=True)
+            labels = labels.to(device, non_blocking=True)
+
             optimizer.zero_grad()
             output = model(images)
 
-            labels = labels.to(device, non_blocking=True)
             loss = loss_fn(output, labels)
             loss.backward()
 
@@ -282,13 +284,14 @@ def train():
                 'epoch': e,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss_fn
-            }, 'model_state/curr_best_model.pth')
+                'loss': loss.item(),
+            }, 'model_state/curr_best_model_state.pth')
 
         scheduler.step()
         print(scheduler.get_last_lr()[0])
 
         val_acc = 0.0
+        val_losses = []
         model.eval()
         with torch.no_grad():
             for x, y in val_loader:
@@ -296,11 +299,15 @@ def train():
                 y = y.to(device=device)
 
                 scores = model(x)
+                val_loss = loss_fn(scores, y)
+                val_losses.append(val_loss.item())
+
                 _, predictions = scores.max(1)
                 val_acc += (predictions == y).sum().item()
 
         val_acc /= len(val_dataset)
-        print(f'Epoch [{e}/{epochs}]: Validation accuracy = {val_acc:.4f}')
+        val_loss = np.array(val_losses).mean()
+        print(f'Epoch [{e}/{epochs}]: Validation accuracy = {val_acc:.4f} Validation loss: {val_loss:.4f}')
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
@@ -308,9 +315,8 @@ def train():
                 'epoch': e,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss_fn
+                'loss': loss.item()
             }, 'model_state/best_val_model_state_gpu.pth')
-
 
     num_correct = 0
     num_samples = 0
@@ -327,12 +333,11 @@ def train():
             num_correct += (predictions == y).sum()
             num_samples += predictions.size(0)
 
-        print(f'Nummber of correct {num_correct} of total {num_samples} with accuracy of'
+        print(f'Number of correct {num_correct} of total {num_samples} with accuracy of'
               f' {float(num_correct) / float(num_samples) * 100:.2f}%')
 
-    # torch.save(model, '')
-    # loaded_model = torch.load('')
-    # print(model)
+    torch.save(model, 'models/saved_model.pth')
+    print(model)
 
 if __name__ == '__main__':
     train()
