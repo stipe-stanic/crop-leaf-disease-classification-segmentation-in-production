@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
 class Model_01(nn.Module):
 
     def __init__(self):
@@ -16,6 +15,16 @@ class Model_01(nn.Module):
 
         self.maxpool1 = nn.MaxPool2d(kernel_size=2, stride=2)
 
+        self.res1 = nn.Sequential(nn.Sequential(
+            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True)
+        ), nn.Sequential(
+            nn.Conv2d(32, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(inplace=True))
+        )
+
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
         self.bn3 = nn.BatchNorm2d(64)
 
@@ -23,6 +32,16 @@ class Model_01(nn.Module):
         self.bn4 = nn.BatchNorm2d(64)
 
         self.maxpool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        self.res2 = nn.Sequential(nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True)
+        ), nn.Sequential(
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True))
+        )
 
         self.conv5 = nn.Conv2d(64, 128, kernel_size=3, padding=1)
         self.bn5 = nn.BatchNorm2d(128)
@@ -32,6 +51,16 @@ class Model_01(nn.Module):
 
         self.maxpool3 = nn.MaxPool2d(kernel_size=2, stride=2)
 
+        self.res3 = nn.Sequential(nn.Sequential(
+            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True)
+        ), nn.Sequential(
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.BatchNorm2d(128),
+            nn.ReLU(inplace=True))
+        )
+
         self.conv7 = nn.Conv2d(128, 256, kernel_size=3, padding=1)
         self.bn7 = nn.BatchNorm2d(256)
 
@@ -40,20 +69,30 @@ class Model_01(nn.Module):
 
         self.maxpool4 = nn.MaxPool2d(kernel_size=2, stride=2)
 
+        self.res4 = nn.Sequential(nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True)
+        ), nn.Sequential(
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(inplace=True))
+        )
+
         self.conv9 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
         self.bn9 = nn.BatchNorm2d(256)
 
         self.maxpool5 = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.dropout1 = nn.Dropout(p = 0.5)
+        self.dropout1 = nn.Dropout(p=0.5)
         self.fc1 = nn.Linear(256 * 7 * 7, 512)
         self.bn10 = nn.BatchNorm1d(512)
 
-        self.dropout2 = nn.Dropout(p = 0.5)
+        self.dropout2 = nn.Dropout(p=0.5)
         self.fc2 = nn.Linear(512, 512)
         self.bn11 = nn.BatchNorm1d(512)
 
-        self.dropout3 = nn.Dropout(p = 0.5)
+        self.dropout3 = nn.Dropout(p=0.5)
         self.fc3 = nn.Linear(512, 4)
 
     def forward(self, x):
@@ -68,6 +107,8 @@ class Model_01(nn.Module):
 
         x = self.maxpool1(x)
 
+        x = self.res1(x) + x
+
         x = self.conv3(x)
         x = self.bn3(x)
         x = F.relu(x)
@@ -77,6 +118,8 @@ class Model_01(nn.Module):
         x = F.relu(x)
 
         x = self.maxpool2(x)
+
+        x = self.res2(x) + x
 
         x = self.conv5(x)
         x = self.bn5(x)
@@ -88,6 +131,8 @@ class Model_01(nn.Module):
 
         x = self.maxpool3(x)
 
+        x = self.res3(x) + x
+
         x = self.conv7(x)
         x = self.bn7(x)
         x = F.relu(x)
@@ -97,6 +142,8 @@ class Model_01(nn.Module):
         x = F.relu(x)
 
         x = self.maxpool4(x)
+
+        x = self.res4(x) + x
 
         x = self.conv9(x)
         x = self.bn9(x)
