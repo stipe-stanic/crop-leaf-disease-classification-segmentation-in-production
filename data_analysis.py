@@ -13,7 +13,7 @@ def get_class_dirs(root_path: str) -> List[str]:
     """Traverses the root dataset directory for the names of its subdirectories and returns a list of their names.
 
     :param root_path: The root directory of dataset
-    :return: A list of names of the subdirectories of the root directory
+    :returns: A list of names of the subdirectories of the root directory
     """
 
     return [class_dir.name for class_dir in os.scandir(root_path) if class_dir.is_dir()]
@@ -23,7 +23,7 @@ def get_image(image_path: str) -> np.ndarray[int]:
     """Loads the image from the specified path and returns it as a NumPy array.
 
     :param image_path: The path to the image file
-    :return: A NumPy array representation of the image
+    :returns: A NumPy array representation of the image
     """
 
     img = Image.open(image_path)
@@ -86,9 +86,13 @@ def print_class_distribution(root_path: str) -> None:
     print(dict_class_numbers)
 
 
-if __name__ == '__main__':
-    root_dir = 'data/plant_dataset_original/plant_diseases_images'
-    plot_images(root_dir)
+def get_num_images_per_class(root_path: str) -> pd.DataFrame:
+    """Returns a Pandas DataFrame containing the number of images in each subdirectory (i.e., class)
+    of the root directory.
+
+    :param root_path: The root directory of the dataset
+    :returns: A pandas DataFrame containing number of images in each subdirectory
+    """
 
     class_name_num_images_list = []
     for subdir in os.scandir(root_dir):
@@ -98,13 +102,23 @@ if __name__ == '__main__':
                 img_path = os.path.join(subdir, filename)
                 num_images += 1
 
+            # Add the class name and number of images to the list
             class_name = subdir.name
             class_name_num_images_dict = {'class_name': class_name, 'number_of_images': num_images}
             class_name_num_images_list.append(class_name_num_images_dict)
 
     df = pd.DataFrame(class_name_num_images_list)
+
+    return df
+
+
+def visualize_images_distribution(df: pd.DataFrame) -> None:
+    """Plots a horizontal bar chart showing the distribution of images across classes in the input DataFrame.
+
+    :param df: A Pandas DataFrame containing the number of images in each subdirectory of the root directory
+    """
+
     df_sorted = df.sort_values('number_of_images')
-    print(df_sorted, '\n')
 
     plt.figure(figsize=(20, 15))
     plt.barh(df_sorted['class_name'], df_sorted['number_of_images'])
@@ -113,4 +127,16 @@ if __name__ == '__main__':
     plt.ylabel("Class names")
     plt.show()
 
+
+if __name__ == '__main__':
+    root_dir = 'data/plant_dataset_original/plant_diseases_images'
+
     print_class_distribution(root_dir)
+
+    plot_images(root_dir)
+
+    df = get_num_images_per_class(root_dir)
+    df_sorted = df.sort_values('number_of_images')
+    print(df_sorted, '\n')
+
+    visualize_images_distribution(df)

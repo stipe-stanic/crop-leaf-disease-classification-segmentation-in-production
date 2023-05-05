@@ -3,6 +3,9 @@ from imgaug import augmenters as iaa
 
 class ImgAugTransform:
     def __init__(self):
+        """Initializes an object of ImgAugTransform class with a sequence of image augmentation operations"""
+
+        # Boilerplate transformations
         self.aug = iaa.Sequential([
             iaa.Resize({'height': 224, 'width': 'keep-aspect-ratio'}),
             iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
@@ -18,5 +21,11 @@ class ImgAugTransform:
         ])
 
     def __call__(self, img):
+        """Applies the sequence of image augmentation operations to the input image
+
+        :param img: the input image
+        :returns: the augmented image
+        """
+
         img = np.array(img)
         return self.aug.augment_image(img)

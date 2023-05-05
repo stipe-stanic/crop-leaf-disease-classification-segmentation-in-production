@@ -132,7 +132,7 @@ def train():
     epochs = 6
     seed = 255
 
-    writer = SummaryWriter('runs/model_01')
+    writer = SummaryWriter('models_storage/runs/model_01')
 
     root_dir = "data/plant_dataset_original/plant_diseases_images"
 
@@ -242,7 +242,7 @@ def train():
 
     show_batch(train_loader)
 
-    model = models.Model_01().to(device)
+    model = models.ResModel().to(device)
     # print(model)
 
     loss_fn = nn.NLLLoss().to(device)
@@ -285,7 +285,7 @@ def train():
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss.item(),
-            }, 'model_state/curr_best_model_state.pth')
+            }, 'models_storage/curr_model_state/last_train_model_state.pth')
 
         scheduler.step()
         print(scheduler.get_last_lr()[0])
@@ -316,7 +316,7 @@ def train():
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss.item()
-            }, 'model_state/best_val_model_state_gpu.pth')
+            }, 'models_storage/curr_model_state/last_best_val_epoch_model_state.pth')
 
     num_correct = 0
     num_samples = 0
@@ -336,7 +336,7 @@ def train():
         print(f'Number of correct {num_correct} of total {num_samples} with accuracy of'
               f' {float(num_correct) / float(num_samples) * 100:.2f}%')
 
-    torch.save(model, 'models/saved_model.pth')
+    torch.save(model, 'models_storage/saved_models/model_01.pth')
     print(model)
 
 if __name__ == '__main__':
