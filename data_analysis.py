@@ -10,24 +10,48 @@ from PIL import Image
 
 
 def get_class_dirs(root_path: str) -> List[str]:
+    """Traverses the root dataset directory for the names of its subdirectories and returns a list of their names.
+
+    :param root_path: The root directory of dataset
+    :return: A list of names of the subdirectories of the root directory
+    """
+
     return [class_dir.name for class_dir in os.scandir(root_path) if class_dir.is_dir()]
 
 
 def get_image(image_path: str) -> np.ndarray[int]:
+    """Loads the image from the specified path and returns it as a NumPy array.
+
+    :param image_path: The path to the image file
+    :return: A NumPy array representation of the image
+    """
+
     img = Image.open(image_path)
     return np.array(img)
 
 
 def plot_images(root_path: str) -> None:
+    """Plots a 4x4 grid of images from the dataset, with each image corresponding
+    to a subdirectory of the root directory.
+
+    :param root_path: The root directory of the dataset
+    """
+
+    # Get the names of the subdirectories in the root directory
     class_dirs_names = get_class_dirs(root_path)
+
+    # Loop over the subdirectories and plot the first image from each directory, nrows x ncols >= 34 for all classes
     fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(10, 20))
 
     for i, class_dir_name in enumerate(class_dirs_names):
+        # Get a list of all the files in the subdirectory and the path of the first image
         files_list = os.listdir(os.path.join(root_path, class_dir_name))
         image_path = os.path.join(root_path, class_dir_name, files_list[0])
+
         image = get_image(image_path)
         width, height = image.shape[:2]
 
+        # Plot the image on the subplot at row i//4, column i%4
         if i < 16:
             axes[i // 4, i % 4].imshow(image)
             axes[i // 4, i % 4].set_title(f'{class_dir_name}\nDimensions: {width}x{height}')
@@ -36,11 +60,18 @@ def plot_images(root_path: str) -> None:
 
 
 def print_class_distribution(root_path: str) -> None:
+    """Prints information about the classes in the dataset, including the unique plants and diseases,
+     and the number of classes, unique plants, unique diseases, and shared diseases.
+
+    :param root_path: The root directory of the dataset
+    """
+
+    # Get the names of the subdirectories of the root directory
     class_dirs_names = get_class_dirs(root_path)
 
+    # Create sets of unique plants and diseases
     unique_plants = set(name.split('_')[0] for name in class_dirs_names)
     unique_diseases = set(' '.join(name.split('_')[1:]) for name in class_dirs_names if not re.search('healthy', name))
-
 
     print(f'Unique plants are: \n{unique_plants}\n')
     print(f'Unique disease are: \n{unique_diseases}\n')
