@@ -51,13 +51,8 @@ class LinearBlock(nn.Module):
     def __init__(self, in_channels: int, out_channels: int, after_conv: bool = False):
         super().__init__()
 
-        if after_conv:
-            self.linear = nn.Linear(in_channels * 14 * 14, out_channels)
-        else:
-            self.linear = nn.Linear(in_channels, out_channels)
-
         self.dropout1 = nn.Dropout(p=0.5)
-        self.fc1 = self.linear
+        self.fc1 = nn.Linear(in_channels * 14 * 14, out_channels) if after_conv else nn.Linear(in_channels, out_channels)
         self.bn1 = nn.BatchNorm1d(out_channels)
 
     def linear_block(self, x):
@@ -83,6 +78,8 @@ class ResModel(nn.Module):
 
         self.conv4 = ConvBlock(128, 256, 256)
         self.res4 = ResidualBlock(256, 256, 256)
+
+        # self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
 
         self.fc1 = LinearBlock(256, 512, after_conv=True)
         self.fc2 = LinearBlock(512, 512)

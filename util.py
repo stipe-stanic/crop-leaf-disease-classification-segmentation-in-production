@@ -7,7 +7,11 @@ from PIL import Image
 
 
 def rename_subdir(root_dir: str) -> None:
-    """Renames subdirectories to standard naming convention: plant_*_disease_*"""
+
+    """Renames subdirectories to standard naming convention: plant_*_disease_*
+
+    :param root_dir: The root directory of the dataset
+    """
 
     for dir_name in os.listdir(root_dir):
         # Remove repetition of any word
@@ -26,13 +30,24 @@ def rename_subdir(root_dir: str) -> None:
 
 
 def print_subdir_name(root_dir: str) -> None:
-    """Prints a list of subdirectories' names"""
+    """Prints a list of subdirectories' names
+
+    :param root_dir: The root directory of the dataset
+    """
 
     subdirs = [os.path.basename(x) for x in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, x))]
     print(subdirs)
 
 
 def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]:
+    """Calculate the mean and standard deviation of pixel values in the dataset.
+
+
+    :param root_dir: :param root_dir: The root directory of the dataset
+    :returns: Tuple containing the mean and standard deviation of pixel values as NumPy arrays.
+    :raises: ValueError if no images were found in the dataset
+    """
+
     # Initialize variables for accumulating mean and std
     n_images = 0
     total_mean = np.zeros((3, ))
@@ -42,6 +57,7 @@ def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]
     for class_dir in os.scandir(root_dir):
         i = 0
         if class_dir.is_dir() and re.search('apple', class_dir.name):
+            # Limits the number of images per class to reduce processing time
             for filename in os.listdir(class_dir):
                 if i > 500:
                     break
