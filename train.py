@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import ConfusionMatrixDisplay, classification_report
+from joblib import dump
 
 import models
 
@@ -208,6 +209,8 @@ def train():
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize((0.44050441, 0.47175582, 0.4283929), (0.16995976, 0.14400921, 0.19573698))
     ])
+
+    dump(dataset_transforms, 'models_storage/saved_models/transform.joblib', compress=True)
 
     dataset = CustomImageFolder(root=config.root_dir, loader=default_loader, transform=dataset_transforms)
     show_dataset(dataset)
