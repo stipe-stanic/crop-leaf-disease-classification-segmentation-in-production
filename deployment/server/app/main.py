@@ -7,6 +7,7 @@ import uvicorn
 import numpy as np
 import torch
 import joblib
+import deployment.config as server_config
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
@@ -105,6 +106,6 @@ async def do_prediction(model: Model, file: UploadFile = File(...)) -> dict:
 
 
 if __name__ == '__main__':
-    host = '0.0.0.0' if os.getenv('docker-setup') else 'localhost'
+    host = server_config.docker_host if os.getenv('docker-setup') else 'localhost'
 
-    uvicorn.run(app, host=host, port=8080)
+    uvicorn.run(app, host=host, port=server_config.port)
