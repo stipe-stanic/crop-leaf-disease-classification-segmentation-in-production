@@ -9,7 +9,7 @@ import torch
 import re
 import torchsummary
 import torchvision.transforms
-import config
+import config, models
 import seaborn as sns
 
 from torch import nn, optim
@@ -21,8 +21,6 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import ConfusionMatrixDisplay, classification_report
 from joblib import dump
-
-import models
 
 
 def valid_file(filename: str) -> bool:
@@ -202,7 +200,7 @@ def train():
     device = get_device()
     print(device)
 
-    writer = SummaryWriter('models_storage/runs/model_01')
+    writer = SummaryWriter('../models_storage/runs/model_01')
 
     dataset_transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224)),
@@ -210,7 +208,7 @@ def train():
         torchvision.transforms.Normalize((0.44050441, 0.47175582, 0.4283929), (0.16995976, 0.14400921, 0.19573698))
     ])
 
-    dump(dataset_transforms, 'models_storage/saved_models/transform.joblib', compress=True)
+    dump(dataset_transforms, '../models_storage/saved_models/transform.joblib', compress=True)
 
     dataset = CustomImageFolder(root=config.root_dir, loader=default_loader, transform=dataset_transforms)
     show_dataset(dataset)
@@ -305,7 +303,7 @@ def train():
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss.item(),
-            }, 'models_storage/curr_model_state/last_train_model_state.pth')
+            }, '../models_storage/curr_model_state/last_train_model_state.pth')
 
         train_acc /= len(train_dataset)
         train_loss = np.array(train_losses).mean()
@@ -340,7 +338,7 @@ def train():
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss.item()
-            }, 'models_storage/curr_model_state/last_best_val_epoch_model_state.pth')
+            }, '../models_storage/curr_model_state/last_best_val_epoch_model_state.pth')
 
     num_correct = 0
     num_samples = 0
@@ -374,7 +372,7 @@ def train():
     plt.title('Classification Report Heatmap')
     plt.show()
 
-    torch.save(model.state_dict(), 'models_storage/saved_models/ResModel.pth')
+    torch.save(model.state_dict(), '../models_storage/saved_models/ResModel.pth')
 
 if __name__ == '__main__':
     train()

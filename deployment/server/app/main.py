@@ -10,12 +10,11 @@ import joblib
 import deployment.config as server_config
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
 from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from PIL import Image
-from models import ResModel
+from train.models import ResModel
 from torch import Tensor
 
 
