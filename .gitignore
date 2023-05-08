@@ -166,6 +166,7 @@ data/
 # Saved models and model states
 models_storage/
 deployment/server/model
+deployment/config.py
 
 # Script for saving helper function and classes currently not in use
 util_commented.py
