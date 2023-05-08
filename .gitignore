@@ -165,6 +165,8 @@ data/
 
 # Saved models and model states
 models_storage/
+
+# deployment configuration
 deployment/server/model
 deployment/config.py
 
