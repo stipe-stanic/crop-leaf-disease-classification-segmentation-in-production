@@ -7,14 +7,14 @@ import uvicorn
 import numpy as np
 import torch
 import joblib
-import deployment.config as server_config
+import config
 
+from models import ResModel
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from PIL import Image
-from train.models import ResModel
 from torch import Tensor
 
 
@@ -39,7 +39,7 @@ def predict(package: dict, input: Image) -> np.ndarray:
 
     model = package['model']
     with torch.no_grad():
-        x = x.to(device='cuda')
+        x = x.to(device=package['device'])
 
         y_pred = model(x)
 
@@ -69,12 +69,13 @@ async def startup_event():
     logger.info(f'Pytorch using device: {device}')
 
     model = ResModel().to(device)
-    model.load_state_dict(torch.load('../model/ResModel.pth', map_location='cuda'))
+    model.load_state_dict(torch.load('model/ResModel.pth', map_location=device))
     model.eval()
 
     app.package = {
-        'transform': joblib.load('../model/transform.joblib'),
-        'model': model
+        'transform': joblib.load('model/transform.joblib'),
+        'model': model,
+        'device': device
     }
 
 
@@ -105,6 +106,12 @@ async def do_prediction(model: Model, file: UploadFile = File(...)) -> dict:
 
 
 if __name__ == '__main__':
-    host = server_config.docker_host if os.getenv('docker-setup') else 'localhost'
+    host, port = 'localhost', 8080
+    if os.getenv('DOCKER_SETUP'):
+        print(os.getenv('docker-setup'))
+        host = config.docker_host
+        app = 'app.main:app'
+        port = 80
 
-    uvicorn.run(app, host=host, port=server_config.port)
+    uvicorn.run(app, host=host, port=port)
+

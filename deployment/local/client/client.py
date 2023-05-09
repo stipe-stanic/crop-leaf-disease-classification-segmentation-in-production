@@ -1,5 +1,5 @@
 import requests
-import deployment.config as server_config
+import deployment.local.config as local_config
 
 def response_from_server(url, image_file, verbose=True) ->  requests.models.Response:
     """Makes a POST request to the server and returns the response.
@@ -24,7 +24,7 @@ def response_from_server(url, image_file, verbose=True) ->  requests.models.Resp
 
 
 if __name__ == '__main__':
-    base_url = server_config.base_url
+    base_url = local_config.base_url
     endpoint = '/predict'
     model = 'res-model'
 
