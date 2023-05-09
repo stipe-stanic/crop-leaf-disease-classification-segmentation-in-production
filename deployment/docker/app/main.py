@@ -1,13 +1,11 @@
 import io
-import os
 
 import matplotlib.pyplot as plt
 import torchvision
-import uvicorn
+
 import numpy as np
 import torch
 import joblib
-import config
 
 from models import ResModel
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -103,15 +101,4 @@ async def do_prediction(model: Model, file: UploadFile = File(...)) -> dict:
     pred = ['apple_black_rot', 'apple_cedar_rust', 'apple_healthy', 'apple_scab'][y.argmax()]
 
     return {'prediction': pred}
-
-
-if __name__ == '__main__':
-    host, port = 'localhost', 8080
-    if os.getenv('DOCKER_SETUP'):
-        print(os.getenv('docker-setup'))
-        host = config.docker_host
-        app = 'app.main:app'
-        port = 80
-
-    uvicorn.run(app, host=host, port=port)
 
