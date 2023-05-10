@@ -1,13 +1,10 @@
 import io
-
-import matplotlib.pyplot as plt
 import torchvision
-
 import numpy as np
 import torch
 import joblib
 
-from models import ResModel
+from app.models import ResModel
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,15 +15,7 @@ from torch import Tensor
 
 def preprocess(package: dict, input_image: Image) -> Tensor:
     transform = package['transform']
-
     img = transform(input_image)
-
-    transform_back = torchvision.transforms.ToPILImage()
-    image_processed = np.asarray(transform_back(img))
-    plt.imshow(image_processed)
-    plt.axis('off')
-    plt.show()
-
     img_tensor = torch.unsqueeze(torch.FloatTensor(img), 0)
 
     return img_tensor
@@ -91,10 +80,6 @@ async def do_prediction(model: Model, file: UploadFile = File(...)) -> dict:
 
     content = await file.read()
     image = Image.open(io.BytesIO(content))
-
-    plt.imshow(image)
-    plt.axis('off')
-    plt.show()
 
     y = predict(app.package, image)[0]
 

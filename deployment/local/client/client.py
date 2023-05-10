@@ -24,7 +24,7 @@ def response_from_server(url, image_file, verbose=True) ->  requests.models.Resp
 
 
 if __name__ == '__main__':
-    base_url = local_config.base_url
+    base_url = local_config.google_cloud_service
     endpoint = '/predict'
     model = 'res-model'
 
