@@ -64,7 +64,7 @@ def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]
                 img_path = os.path.join(class_dir, filename)
                 img = Image.open(img_path)
                 pixel_list = list(img.getdata())
-                img_array  = np.array(pixel_list).reshape((img.size[1], img.size[0], 3))
+                img_array = np.array(pixel_list).reshape((img.size[1], img.size[0], 3))
                 img_array = img_array.astype(np.float32) / 255.0
 
                 mean = np.mean(img_array, axis=(0, 1))
@@ -82,4 +82,3 @@ def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]
         raise ValueError("No images found in dataset")
 
     return mean_pixel_values, std_pixel_values
-

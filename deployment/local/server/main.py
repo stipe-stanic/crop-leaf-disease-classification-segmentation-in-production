@@ -1,5 +1,4 @@
 import io
-import os
 
 import matplotlib.pyplot as plt
 import torchvision
@@ -14,7 +13,7 @@ from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from PIL import Image
-from deployment.local.server.models import ResModel
+from train.models import ResModel
 from torch import Tensor
 
 
@@ -69,11 +68,11 @@ async def startup_event():
     logger.info(f'Pytorch using device: {device}')
 
     model = ResModel().to(device)
-    model.load_state_dict(torch.load('model/ResModel.pth', map_location=device))
+    model.load_state_dict(torch.load('../../../models_storage/saved_models/ResModel.pth', map_location=device))
     model.eval()
 
     app.package = {
-        'transform': joblib.load('model/transform.joblib'),
+        'transform': joblib.load('../../../models_storage/saved_models/transform.joblib'),
         'model': model,
         'device': device
     }

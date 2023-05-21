@@ -81,14 +81,14 @@ class FocalLoss(nn.Module):
         :returns: loss = SmoothL1Loss(loc_preds, loc_targets) + FocalLoss(cls_preds, cls_targets)
         """
 
-        batch_size, num_boxes = cls_targets.size()
+        # batch_size, num_boxes = cls_targets.size()
         pos = cls_targets > 0  # [N, #anchors]
         num_pos = pos.data.long().sum()
 
         # loc_loss = SmoothL1Loss(pos_loc_preds, pos_loc_targets)
         mask = pos.unsqueeze(2).expand_as(loc_preds)       # [N, #anchors, 4]
-        masked_loc_preds = loc_preds[mask].view(-1,4)      # [#pos, 4]
-        masked_loc_targets = loc_targets[mask].view(-1,4)  # [#pos, 4]
+        masked_loc_preds = loc_preds[mask].view(-1, 4)      # [#pos, 4]
+        masked_loc_targets = loc_targets[mask].view(-1, 4)  # [#pos, 4]
         loc_loss = F.smooth_l1_loss(masked_loc_preds, masked_loc_targets, size_average=False)
 
         # cls_loss = FocalLoss(loc_preds, loc_targets)

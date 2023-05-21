@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -29,22 +28,22 @@ class ConvBlock(nn.Module):
 
 
 class ResidualBlock(nn.Module):
-   """Residual block with two convolutions followed by batch normalization layers"""
+    """Residual block with two convolutions followed by batch normalization layers"""
 
-   def __init__(self, in_channels: int, hidden_channels: int,  out_channels: int):
-       super().__init__()
-       self.conv1 = nn.Conv2d(in_channels, hidden_channels, kernel_size=3, stride=1, padding=1)
-       self.bn1 = nn.BatchNorm2d(hidden_channels)
+    def __init__(self, in_channels: int, hidden_channels: int,  out_channels: int):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_channels, hidden_channels, kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm2d(hidden_channels)
 
-       self.conv2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=3, stride=1, padding=1)
-       self.bn2 = nn.BatchNorm2d(out_channels)
+        self.conv2 = nn.Conv2d(hidden_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
 
-   def residual_block(self, x):
-       x1 = F.relu(self.bn1(self.conv1(x)))
-       x2 = F.relu(self.bn2(self.conv2(x1)))
-       return x2 + x
+    def residual_block(self, x):
+        x1 = F.relu(self.bn1(self.conv1(x)))
+        x2 = F.relu(self.bn2(self.conv2(x1)))
+        return x2 + x
 
-   def forward(self, x): return self.residual_block(x)
+    def forward(self, x): return self.residual_block(x)
 
 
 class LinearBlock(nn.Module):

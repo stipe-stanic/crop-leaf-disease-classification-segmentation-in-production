@@ -1,6 +1,7 @@
 import numpy as np
 from imgaug import augmenters as iaa
 
+
 class ImgAugTransform:
     def __init__(self):
         """Initializes an object of ImgAugTransform class with a sequence of image augmentation operations"""

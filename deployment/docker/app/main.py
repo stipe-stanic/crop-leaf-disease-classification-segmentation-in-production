@@ -1,5 +1,4 @@
 import io
-import torchvision
 import numpy as np
 import torch
 import joblib
@@ -86,4 +85,3 @@ async def do_prediction(model: Model, file: UploadFile = File(...)) -> dict:
     pred = ['apple_black_rot', 'apple_cedar_rust', 'apple_healthy', 'apple_scab'][y.argmax()]
 
     return {'prediction': pred}
-

@@ -9,7 +9,8 @@ import torch
 import re
 import torchsummary
 import torchvision.transforms
-import config, models
+import config
+import models
 import seaborn as sns
 
 from torch import nn, optim
@@ -63,7 +64,9 @@ class CustomImageFolder(torchvision.datasets.DatasetFolder):
     """
 
     def __init__(self, root, transform=None, target_transform=None, loader=default_loader, is_valid_file=valid_file):
-        super().__init__(root, transform=transform, target_transform=target_transform, loader=loader, is_valid_file=is_valid_file)
+        super().__init__(root, transform=transform, target_transform=target_transform,
+                         loader=loader, is_valid_file=is_valid_file)
+
     def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
         return find_classes(directory)
 
@@ -84,7 +87,7 @@ def show_dataset(dataset: DatasetFolder | Subset, n=6) -> None:
     plt.show()
 
 
-def show_batch(dataset_loader: DataLoader , num_of_images: int = 9) -> None:
+def show_batch(dataset_loader: DataLoader, num_of_images: int = 9) -> None:
     """Displays images before feeding them to the model
 
     :raises AssertionError: If number of images to display exceeds batch size
@@ -162,7 +165,9 @@ def stratify_split(dataset: CustomImageFolder) -> Tuple[Subset, Subset, Subset]:
     return train_dataset, val_dataset, test_dataset
 
 
-def print_class_distribution(dataset: DatasetFolder, train_dataset: Subset, val_dataset: Subset, test_dataset: Subset) -> None:
+def print_class_distribution(
+        dataset: DatasetFolder, train_dataset: Subset,
+        val_dataset: Subset, test_dataset: Subset) -> None:
     # Check distribution of classes in train, val and test datasets
     train_target_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False)
     val_target_loader = torch.utils.data.DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
@@ -346,7 +351,7 @@ def train():
 
     model.eval()
     with torch.no_grad():
-        for x, y in test_loader: # images, labels
+        for x, y in test_loader:  # images, labels
             # x = x.to(device, non_blocking=True).view(images.shape[0], -1)
             x = x.to(device=device)
             y = y.to(device=device)
@@ -373,6 +378,7 @@ def train():
     plt.show()
 
     torch.save(model.state_dict(), '../models_storage/saved_models/ResModel.pth')
+
 
 if __name__ == '__main__':
     train()

@@ -1,7 +1,8 @@
 import requests
 import deployment.local.config as local_config
 
-def response_from_server(url, image_file, verbose=True) ->  requests.models.Response:
+
+def response_from_server(url, image_file, verbose=True) -> requests.models.Response:
     """Makes a POST request to the server and returns the response.
 
     Args:
@@ -36,4 +37,3 @@ if __name__ == '__main__':
     response_json = prediction.json()
     prediction_label = response_json['prediction']
     print(prediction_label)
-

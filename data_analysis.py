@@ -95,11 +95,10 @@ def get_num_images_per_class(root_path: str) -> pd.DataFrame:
     """
 
     class_name_num_images_list = []
-    for subdir in os.scandir(root_dir):
+    for subdir in os.scandir(root_path):
         num_images = 0
         if subdir.is_dir():
             for filename in os.listdir(subdir):
-                img_path = os.path.join(subdir, filename)
                 num_images += 1
 
             # Add the class name and number of images to the list
