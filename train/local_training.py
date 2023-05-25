@@ -22,6 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import ConfusionMatrixDisplay, classification_report
 from joblib import dump
+from img_aug_transform import CustomCLAHE
 
 
 def valid_file(filename: str) -> bool:
@@ -79,6 +80,7 @@ def show_dataset(dataset: DatasetFolder | Subset, n=6) -> None:
     """
 
     # Transform image from tensor to PILImage
+
     transform = torchvision.transforms.ToPILImage()
     img = np.vstack([np.hstack([np.asarray(transform(dataset[i][0])) for _ in range(n)])
                      for i in range(n)])
@@ -114,6 +116,11 @@ def show_batch(dataset_loader: DataLoader, num_of_images: int = 9) -> None:
 
     except AssertionError as msg:
         print("Error:", msg)
+
+
+def custom_clahe_transform(img):
+    transform = CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8))
+    return transform(img)
 
 
 def loader_shape(dataset_loader: DataLoader) -> Tuple[torch.Size, torch.Size]:
@@ -225,15 +232,14 @@ def train():
     print(f"Number of test samples: {len(test_dataset)}")
 
     train_transforms = torchvision.transforms.Compose([
+        torchvision.transforms.Lambda(custom_clahe_transform),  # increases contrast in a smart way
         torchvision.transforms.CenterCrop(224),
         torchvision.transforms.RandomResizedCrop(224),
-        torchvision.transforms.RandomCrop(224),
-        torchvision.transforms.ColorJitter(brightness=.05, contrast=0.5, saturation=.05),
         torchvision.transforms.RandomHorizontalFlip(),
         torchvision.transforms.RandomVerticalFlip(),
         torchvision.transforms.RandomRotation(20, interpolation=torchvision.transforms.InterpolationMode.BILINEAR,
                                               expand=False),
-        torchvision.transforms.RandomGrayscale(),
+        torchvision.transforms.ColorJitter(brightness=.05, contrast=0.5, saturation=.05, hue=.05),
         torchvision.transforms.Resize((224, 224)),
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
