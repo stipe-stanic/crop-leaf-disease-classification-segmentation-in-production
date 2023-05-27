@@ -51,7 +51,7 @@ class LinearBlock(nn.Module):
         super().__init__()
 
         self.dropout1 = nn.Dropout(p=0.5)
-        self.fc1 = nn.Linear(in_channels * 14 * 14, out_channels) if after_conv else nn.Linear(in_channels, out_channels)
+        self.fc1 = nn.Linear(in_channels * 7 * 7, out_channels) if after_conv else nn.Linear(in_channels, out_channels)
         self.bn1 = nn.BatchNorm1d(out_channels)
 
     def linear_block(self, x):
@@ -78,18 +78,19 @@ class ResModel(nn.Module):
         self.conv4 = ConvBlock(128, 256, 256)
         self.res4 = ResidualBlock(256, 256, 256)
 
-        # self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv5 = ConvBlock(256, 512, 512)
+        self.res5 = ResidualBlock(512, 512, 512)
 
-        self.fc1 = LinearBlock(256, 512, after_conv=True)
-        self.fc2 = LinearBlock(512, 512)
+        self.fc1 = LinearBlock(512, 1024, after_conv=True)
+        self.fc2 = LinearBlock(1024, 1024)
 
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.5),
-            nn.Linear(512, 4)
+            nn.Linear(1024, 4)
         )
 
     def forward(self, x):
-        # Conv blocks
+        # Conv blocks and residual blocks
         x = self.conv1(x)
         x = self.res1(x)
 
@@ -101,6 +102,9 @@ class ResModel(nn.Module):
 
         x = self.conv4(x)
         x = self.res4(x)
+
+        x = self.conv5(x)
+        x = self.res5(x)
 
         # Linear blocks
         x = x.view(x.size(0), -1)

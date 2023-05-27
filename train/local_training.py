@@ -1,7 +1,4 @@
 import os
-
-from typing import List, Dict, Tuple
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -12,7 +9,9 @@ import torchvision.transforms
 import config
 import models
 import seaborn as sns
+import time
 
+from typing import List, Dict, Tuple
 from torch import nn, optim
 from tqdm import tqdm
 from torchvision.datasets.folder import default_loader, DatasetFolder
@@ -37,8 +36,7 @@ def find_classes(directory: str) -> Tuple[List[str], Dict[str, int]]:
     This function searches for subdirectories in the specified directory and returns a list of class names and
     dictionary mapping each class name to its corresponding index.
 
-    The function only includes subdirectories whose names match the regular expression 'apple'. This is intended to
-    filter the classes for a specific type of dataset.
+    The function can be modified to load specific classes instead of the whole dataset.
 
     :param directory: The root directory of the training dataset.
 
@@ -48,8 +46,7 @@ def find_classes(directory: str) -> Tuple[List[str], Dict[str, int]]:
     :raises FileNotFoundError: If no class folders are found in the specified directory.
     """
 
-    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir()
-                     and re.search('apple', entry.name))
+    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir() and re.search('apple', entry.name))
     if not classes:
         raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
 
@@ -172,40 +169,91 @@ def stratify_split(dataset: CustomImageFolder) -> Tuple[Subset, Subset, Subset]:
     return train_dataset, val_dataset, test_dataset
 
 
-def print_class_distribution(
-        dataset: DatasetFolder, train_dataset: Subset,
-        val_dataset: Subset, test_dataset: Subset) -> None:
-    # Check distribution of classes in train, val and test datasets
-    train_target_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False)
-    val_target_loader = torch.utils.data.DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
-    test_target_loader = torch.utils.data.DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
-
-    train_targets = []
-    for batch in train_target_loader:
-        train_targets.extend(batch[1].tolist())
-
-    val_targets = []
-    for batch in val_target_loader:
-        val_targets.extend(batch[1].tolist())
-
-    test_targets = []
-    for batch in test_target_loader:
-        test_targets.extend(batch[1].tolist())
-
-    train_counts = [train_targets.count(i) for i in range(len(dataset.classes))]
-    val_counts = [val_targets.count(i) for i in range(len(dataset.classes))]
-    test_counts = [test_targets.count(i) for i in range(len(dataset.classes))]
-
-    print("Train class distribution:", train_counts)
-    print("Val class distribution:", val_counts)
-    print("Test class distribution:", test_counts)
-
-
 def plot_confusion_matrix(y_test, y_pred, class_names):
     fig, ax = plt.subplots(figsize=(10, 10))
     ConfusionMatrixDisplay.from_predictions(y_test, y_pred, display_labels=class_names, xticks_rotation="vertical",
                                             ax=ax, colorbar=False)
     plt.show(block=False)
+
+
+class LR_ASK():
+    def __init__(self, model, optimizer, epochs, ask_epoch):
+        self.model = model
+        self.optimizer = optimizer
+        self.ask_epoch = ask_epoch
+        self.epochs = epochs
+        self.ask = True
+        self.lowest_vloss = np.inf
+        self.best_weights = model.state_dict()
+        self.best_epoch = 1
+        self.start_time = None
+
+    def on_train_begin(self):
+        if self.ask_epoch == 0:
+            print('You set ask_epoch = 0, ask_epoch will be set to 1', flush=True)
+            self.ask_epoch = 1
+
+        if self.ask_epoch >= self.epochs:
+            print('Ask_epoch >= epochs, will train for', self.epochs, 'epochs', flush=True)
+            self.ask = False
+
+        if self.epochs == 1:
+            self.ask = False
+        else:
+            print('Training will proceed until epoch', self.ask_epoch,
+                  'then you will be asked to enter H(h) to halt training or enter an integer'
+                  ' to continue training for n number of epochs')
+
+        self.start_time = time.time()
+
+    def on_train_end(self):
+        print('Loading model with weights from epoch', self.best_epoch)
+        self.model.load_state_dict(self.best_weights)
+
+        tr_duration = time.time() - self.start_time
+        hours = int(tr_duration // 3600)
+        minutes = int((tr_duration % 3600) // 60)
+        seconds = tr_duration % 60
+        msg = f'Training elapsed time was {hours:02d}h:{minutes:02d}m:{seconds:02.0f}s'
+        print(msg, flush=True)
+
+    def on_epoch_end(self, epoch, val_loss):
+        v_loss = val_loss.item()
+        if v_loss < self.lowest_vloss:
+            self.lowest_vloss = v_loss
+            self.best_weights = self.model.state_dict()
+            self.best_epoch = epoch + 1
+            print(f'\nValidation loss of {v_loss:.4f} is below lowest loss,'
+                  f' saving weights from epoch {str(epoch + 1)} as best weights')
+        else:
+            print(f'\nValidation loss of {v_loss:.4f} is above lowest loss of {self.lowest_vloss:.4f}'
+                  f' keeping weights from epoch {str(self.best_epoch)} as best weights')
+
+        if self.ask and epoch + 1 == self.ask_epoch:
+            print('\nEnter H(h) to end training or enter an integer for the number of additional epochs to run')
+            ans = input()
+
+            if ans == 'H' or ans == 'h' or ans == '0':
+                print('You entered', ans, 'training halted on epoch', epoch + 1, 'due to user input\n', flush=True)
+                raise KeyboardInterrupt
+            else:
+                self.ask_epoch += int(ans)
+                if self.ask_epoch > self.epochs:
+                    print('\nYou specified maximum epochs as', self.epochs, 'cannot train for', self.ask_epoch, flush=True)
+                else:
+                    print('You entered', ans, ', training will continue to epoch', self.ask_epoch, flush=True)
+
+                    lr = self.optimizer.param_groups[0]['lr']
+                    print(f'Current LR is {lr}, enter C(c) to keep this LR or enter a float number for a new LR')
+
+                    ans = input()
+                    if ans == 'C' or ans == 'c':
+                        print(f'Keeping current LR of {lr}\n')
+                    else:
+                        new_lr = float(ans)
+                        for param_group in self.optimizer.param_groups:
+                            param_group['lr'] = new_lr
+                        print('Changing LR to\n', ans)
 
 
 def train():
@@ -267,18 +315,20 @@ def train():
     torchsummary.summary(model, (3, 224, 224), batch_size=config.batch_size)
 
     loss_fn = nn.NLLLoss().to(device)
-    # loss_fn = nn.CrossEntropyLoss().to(device)
 
-    # optimizer = optim.SGD(model.parameters(), lr=0.003, momentum=0.9)
     # optimizer = optim.RMSprop(model.parameters()) # default lr=0.01
     optimizer = optim.Adamax(model.parameters(), lr=config.adamax_lr, weight_decay=config.adamax_weight_decay)
     scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=2)
+
+    lr_ask_callback = LR_ASK(model, optimizer, config.epochs, ask_epoch=2)
 
     best_val_acc = 0.0
     loss = None
 
     train_per_epoch = int(len(train_dataset) / config.batch_size)
+    lr_ask_callback.on_train_begin()
     for e in range(config.epochs):
+        print(f'Learning rate: {scheduler.get_last_lr()[0]}')
         loop = tqdm(enumerate(train_loader), total=len(train_loader), leave=True)
         model.train()
 
@@ -321,7 +371,6 @@ def train():
         print(f'Epoch [{e}/{config.epochs}]: Train accuracy = {train_acc:.4f} Validation loss: {train_loss:.4f}')
 
         scheduler.step()
-        # print(scheduler.get_last_lr()[0])
 
         val_acc = 0.0
         val_losses = []
@@ -350,6 +399,13 @@ def train():
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss.item()
             }, '../models_storage/curr_model_state/last_best_val_epoch_model_state.pth')
+
+        try:
+            lr_ask_callback.on_epoch_end(e, val_loss)
+        except KeyboardInterrupt:
+            break
+
+    lr_ask_callback.on_train_end()
 
     num_correct = 0
     num_samples = 0

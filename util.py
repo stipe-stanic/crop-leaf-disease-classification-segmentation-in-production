@@ -1,13 +1,17 @@
 import os
 import re
+import torch
 
 import cv2
 import numpy as np
 import random
 
+from torchvision.datasets.folder import DatasetFolder
+from torch.utils.data import DataLoader, Subset
 from typing import Tuple, List
 from PIL import Image
 from img_aug_transform import ImgAugGenerate
+from train import config
 
 
 def rename_subdir(root_dir: str) -> None:
@@ -22,7 +26,7 @@ def rename_subdir(root_dir: str) -> None:
         dir_name_target = ' '.join(sorted(set(dir_name.lower().split()), key=dir_name.lower().split().index))
 
         # Remove list of words
-        words_to_remove = ["leaf"]
+        words_to_remove = ['leaf']
         for word in words_to_remove:
             dir_name_target = dir_name_target.replace(f'_{word}_', '_')
 
@@ -31,6 +35,30 @@ def rename_subdir(root_dir: str) -> None:
 
         # Rename the directory
         os.rename(os.path.join(root_dir, dir_name), os.path.join(root_dir, dir_name_target))
+
+
+def rename_subdir_files(root_dir: str, sub_dir_name: str) -> None:
+    sub_dir = os.path.join(root_dir, sub_dir_name)
+    for file_name in os.listdir(sub_dir):
+        file_name_target = ' '.join(sorted(set(file_name.lower().split()), key=file_name.lower().split().index))
+
+        words_to_remove = ['leaf', '(including_sour)', 'in', '(maize)', 'esca', 'flip',
+                           'and', 'two', 'spotted', 'mite']
+        for word in words_to_remove:
+            if word in file_name_target:
+                file_name_target = file_name_target.replace(f'_{word}_', '_')
+                file_name_target = file_name_target.replace(f'_{word}', '')
+
+        file_name_target = file_name_target.replace(' ', '_')
+
+        # Remove first occurrence of ".jpg", since some files have double appearance
+        if file_name_target.count('.jpg') > 1:
+            file_name_target = file_name_target.replace('.jpg', '', 1)
+
+        if sub_dir_name == 'tomato_mosaic_virus' and file_name_target.count('tomato') > 1:
+            file_name_target = file_name_target.replace(f'_tomato_', '_', 1)
+
+        os.rename(os.path.join(sub_dir, file_name), os.path.join(sub_dir, file_name_target))
 
 
 def print_subdir_name(root_dir: str) -> None:
@@ -46,8 +74,7 @@ def print_subdir_name(root_dir: str) -> None:
 def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]:
     """Calculate the mean and standard deviation of pixel values in the dataset.
 
-
-    :param root_dir: :param root_dir: The root directory of the dataset
+    :param root_dir: The root directory of the dataset
     :returns: Tuple containing the mean and standard deviation of pixel values as NumPy arrays.
     :raises: ValueError if no images were found in the dataset
     """
@@ -60,10 +87,10 @@ def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]
     # Iterate over images in directory
     for class_dir in os.scandir(root_dir):
         i = 0
-        if class_dir.is_dir() and re.search('apple', class_dir.name):
+        if class_dir.is_dir():
             # Limits the number of images per class to reduce processing time
             for filename in os.listdir(class_dir):
-                if i > 500:
+                if i > 100:
                     break
                 img_path = os.path.join(class_dir, filename)
                 img = Image.open(img_path)
@@ -86,6 +113,35 @@ def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]
         raise ValueError("No images found in dataset")
 
     return mean_pixel_values, std_pixel_values
+
+
+def print_class_distribution(
+        dataset: DatasetFolder, train_dataset: Subset,
+        val_dataset: Subset, test_dataset: Subset) -> None:
+    # Check distribution of classes in train, val and test datasets
+    train_target_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.batch_size, shuffle=False)
+    val_target_loader = torch.utils.data.DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False)
+    test_target_loader = torch.utils.data.DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
+
+    train_targets = []
+    for batch in train_target_loader:
+        train_targets.extend(batch[1].tolist())
+
+    val_targets = []
+    for batch in val_target_loader:
+        val_targets.extend(batch[1].tolist())
+
+    test_targets = []
+    for batch in test_target_loader:
+        test_targets.extend(batch[1].tolist())
+
+    train_counts = [train_targets.count(i) for i in range(len(dataset.classes))]
+    val_counts = [val_targets.count(i) for i in range(len(dataset.classes))]
+    test_counts = [test_targets.count(i) for i in range(len(dataset.classes))]
+
+    print("Train class distribution:", train_counts)
+    print("Val class distribution:", val_counts)
+    print("Test class distribution:", test_counts)
 
 
 def trim_num_images(root_path: str, classes_to_trim: List[str], trim_number: int) -> None:
