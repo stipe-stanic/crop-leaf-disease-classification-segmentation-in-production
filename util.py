@@ -1,9 +1,13 @@
 import os
 import re
-import numpy as np
 
-from typing import Tuple
+import cv2
+import numpy as np
+import random
+
+from typing import Tuple, List
 from PIL import Image
+from img_aug_transform import ImgAugGenerate
 
 
 def rename_subdir(root_dir: str) -> None:
@@ -82,3 +86,43 @@ def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]
         raise ValueError("No images found in dataset")
 
     return mean_pixel_values, std_pixel_values
+
+
+def trim_num_images(root_path: str, classes_to_trim: List[str], trim_number: int) -> None:
+    """Randomly removes images from the dataset so no class has over n number of images
+
+    :param root_path: The root directory of the dataset
+    :param classes_to_trim: List of class names to trim
+    :param trim_number: Maximum number of images to retain per class
+    """
+
+    for class_dir_name in classes_to_trim:
+        class_dir = os.path.join(root_path, class_dir_name)
+        files_list = os.listdir(class_dir)
+
+        if len(files_list) > trim_number:
+            num_files_to_remove = len(files_list) - trim_number
+            files_to_remove = random.sample(files_list, num_files_to_remove)
+
+            for file_name in files_to_remove:
+                file_path = os.path.join(class_dir, file_name)
+                os.remove(file_path)
+
+
+def generate_aug_images(root_path: str, class_name: str, num_images: int) -> None:
+    image_dir = os.path.join(root_path, class_name)
+    image_files = os.listdir(image_dir)
+
+    augment = ImgAugGenerate()
+
+    for i in range(num_images):
+        random_image_file = random.choice(image_files)
+        image_path = os.path.join(image_dir, random_image_file)
+
+        image = cv2.imread(image_path)
+        augmented_image = augment(image)
+
+        image_name = f'{class_name}_augmented_{i+1}.jpg'
+        save_file_path = os.path.join(image_dir, image_name)
+        augmented_image = Image.fromarray(augmented_image)
+        augmented_image.save(save_file_path)

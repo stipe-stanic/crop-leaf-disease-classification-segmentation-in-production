@@ -139,3 +139,5 @@ if __name__ == '__main__':
     print(df_sorted, '\n')
 
     visualize_images_distribution(df)
+
+    print(f"Total number of images: {df['number_of_images'].sum()}")

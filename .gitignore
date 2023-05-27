@@ -167,7 +167,6 @@ data/
 models_storage/
 
 # deployment local configuration
-deployment/local/server/model
 deployment/local/config.py
 deployment/local/server/images_uploaded
 

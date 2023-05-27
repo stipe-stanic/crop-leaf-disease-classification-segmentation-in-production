@@ -4,6 +4,7 @@ from torchvision.transforms import functional as F
 import cv2
 from PIL import Image
 
+
 class CustomCLAHE(object):
     def __init__(self, clip_limit=2.0, tile_grid_size=(8, 8)):
         self.clip_limit = clip_limit
@@ -27,23 +28,17 @@ class CustomCLAHE(object):
         return Image.fromarray(equalized_bgr_image)
 
 
-class ImgAugTransform:
+class ImgAugGenerate:
     def __init__(self):
         """Initializes an object of ImgAugTransform class with a sequence of image augmentation operations"""
 
         # Boilerplate transformations
         self.aug = iaa.Sequential([
             iaa.Resize({'height': 224, 'width': 'keep-aspect-ratio'}),
-            iaa.Sometimes(0.25, iaa.GaussianBlur(sigma=(0, 3.0))),
+            iaa.Flipud(0.5),
             iaa.Fliplr(0.5),
             iaa.Affine(rotate=(-20, 20), mode='symmetric'),
-            iaa.Sometimes(0.25,
-                          iaa.OneOf([
-                              iaa.Dropout(p=(0, 0.1)),
-                              iaa.CoarseDropout(0.1, size_percent=0.5)
-                          ])),
             iaa.AddToHueAndSaturation(value=(-10, 10), per_channel=True),
-            iaa.Sometimes(0.25, iaa.Grayscale())
         ])
 
     def __call__(self, img):
