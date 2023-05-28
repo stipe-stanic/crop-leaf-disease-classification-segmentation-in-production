@@ -19,7 +19,7 @@ from torch.utils.data import random_split
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import ConfusionMatrixDisplay, classification_report
+from sklearn.metrics import ConfusionMatrixDisplay, classification_report, roc_auc_score, cohen_kappa_score
 from joblib import dump
 from img_aug_transform import CustomCLAHE
 
@@ -234,14 +234,14 @@ class LR_ASK():
             ans = input()
 
             if ans == 'H' or ans == 'h' or ans == '0':
-                print('You entered', ans, 'training halted on epoch', epoch + 1, 'due to user input\n', flush=True)
+                print(f'You entered {ans}, training halted on epoch {epoch + 1}, due to user input\n', flush=True)
                 raise KeyboardInterrupt
             else:
                 self.ask_epoch += int(ans)
                 if self.ask_epoch > self.epochs:
                     print('\nYou specified maximum epochs as', self.epochs, 'cannot train for', self.ask_epoch, flush=True)
                 else:
-                    print('You entered', ans, ', training will continue to epoch', self.ask_epoch, flush=True)
+                    print(f'You entered {ans}, training will continue to epoch {self.ask_epoch}', flush=True)
 
                     lr = self.optimizer.param_groups[0]['lr']
                     print(f'Current LR is {lr}, enter C(c) to keep this LR or enter a float number for a new LR')
@@ -265,7 +265,8 @@ def train():
     dataset_transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224)),
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.44050441, 0.47175582, 0.4283929), (0.16995976, 0.14400921, 0.19573698))
+        # old values (0.44050441, 0.47175582, 0.4283929), (0.16995976, 0.14400921, 0.19573698)
+        torchvision.transforms.Normalize((0.46445759, 0.49094302, 0.41258632), (0.1741543, 0.14767326, 0.19304359))
     ])
 
     dump(dataset_transforms, '../models_storage/saved_models/transform.joblib', compress=True)
@@ -320,9 +321,9 @@ def train():
     optimizer = optim.Adamax(model.parameters(), lr=config.adamax_lr, weight_decay=config.adamax_weight_decay)
     scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=2)
 
-    lr_ask_callback = LR_ASK(model, optimizer, config.epochs, ask_epoch=2)
+    lr_ask_callback = LR_ASK(model, optimizer, config.epochs, ask_epoch=0)
 
-    best_val_acc = 0.0
+    best_val_loss = float('inf')
     loss = None
 
     train_per_epoch = int(len(train_dataset) / config.batch_size)
@@ -391,14 +392,14 @@ def train():
         val_loss = np.array(val_losses).mean()
         print(f'Epoch [{e}/{config.epochs}]: Validation accuracy = {val_acc:.4f} Validation loss: {val_loss:.4f}')
 
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
             torch.save({
                 'epoch': e,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': loss.item()
-            }, '../models_storage/curr_model_state/last_best_val_epoch_model_state.pth')
+            }, '../models_storage/curr_model_state/best_val_loss_checkpoint.pth')
 
         try:
             lr_ask_callback.on_epoch_end(e, val_loss)
@@ -409,7 +410,7 @@ def train():
 
     num_correct = 0
     num_samples = 0
-    y_true, y_pred = [], []
+    y_true, y_pred, y_score = [], [], []
 
     model.eval()
     with torch.no_grad():
@@ -426,9 +427,19 @@ def train():
 
             y_true.extend(y.cpu().numpy())
             y_pred.extend(predictions.cpu().numpy())
+            y_score.extend(scores.cpu().numpy())
+
+        y_true = np.array(y_true)
+        y_pred = np.array(y_pred)
+        y_score = np.array(y_score)
+
+        y_prob = np.exp(y_score) / np.sum(np.exp(y_score), axis=1, keepdims=True)
 
         print(f'Number of correct {num_correct} of total {num_samples} with accuracy of'
-              f' {float(num_correct) / float(num_samples) * 100:.2f}%')
+              f' {float(num_correct) / float(num_samples) * 100:.2f}%\n')
+
+        print(f'Area under the ROC curve: {roc_auc_score(y_true, y_prob, multi_class="ovr")}')
+        print(f'Cohen kappa score: {cohen_kappa_score(y_true, y_pred)}')
 
     plot_confusion_matrix(y_true, y_pred, dataset.classes)
 
