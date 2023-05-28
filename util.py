@@ -1,6 +1,10 @@
 import os
 import re
+
+import matplotlib.pyplot as plt
+import pandas as pd
 import torch
+import seaborn as sns
 
 import cv2
 import numpy as np
@@ -71,10 +75,44 @@ def print_subdir_name(root_dir: str) -> None:
     print(subdirs)
 
 
+def resize_image(img, target_size: Tuple[int, int]):
+    """Resize the image while maintaining the aspect ratio and pad or crop it to the target size.
+
+    :param img: The input image
+    :param target_size: The desired size (tuple of width and height)
+    :returns: The resized and processed image
+    """
+    width, height = img.size
+    target_width, target_height = target_size
+
+    # Calculate the aspect ratio
+    aspect_ratio = width / height
+
+    # Determine the resizing dimensions while maintaining the aspect ratio
+    if aspect_ratio > 1:
+        # Landscape orientation
+        new_width = target_width
+        new_height = int(target_width / aspect_ratio)
+    else:
+        # Portrait or square orientation
+        new_width = int(target_height * aspect_ratio)
+        new_height = target_height
+
+    # Resize the image while maintaining the aspect ratio
+    resized_img = img.resize((new_width, new_height))
+
+    # Pad or crop the image to the target size
+    padded_img = Image.new("RGB", target_size)
+    padded_img.paste(resized_img, ((target_width - new_width) // 2, (target_height - new_height) // 2))
+
+    return padded_img
+
+
 def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]:
     """Calculate the mean and standard deviation of pixel values in the dataset.
 
     :param root_dir: The root directory of the dataset
+    :param target_size: The desired size of the images (tuple of width and height)
     :returns: Tuple containing the mean and standard deviation of pixel values as NumPy arrays.
     :raises: ValueError if no images were found in the dataset
     """
@@ -94,8 +132,11 @@ def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]
                     break
                 img_path = os.path.join(class_dir, filename)
                 img = Image.open(img_path)
+
+                img = resize_image(img, (224, 224))
+
                 pixel_list = list(img.getdata())
-                img_array = np.array(pixel_list).reshape((img.size[1], img.size[0], 3))
+                img_array = np.array(pixel_list).reshape((224, 224, 3))
                 img_array = img_array.astype(np.float32) / 255.0
 
                 mean = np.mean(img_array, axis=(0, 1))
@@ -182,3 +223,38 @@ def generate_aug_images(root_path: str, class_name: str, num_images: int) -> Non
         save_file_path = os.path.join(image_dir, image_name)
         augmented_image = Image.fromarray(augmented_image)
         augmented_image.save(save_file_path)
+
+
+def plot_rgb_channel_distribution(root_dir: str) -> None:
+
+
+    rgb_values = []
+    for class_dir in os.scandir(root_dir):
+        i = 0
+        if class_dir.is_dir():
+            # Limits the number of images per class to reduce processing time
+            for filename in os.listdir(class_dir):
+                if i > 100:
+                    break
+
+                img_path = os.path.join(class_dir, filename)
+                img = Image.open(img_path)
+
+                if img.mode != 'RGB':
+                    img = img.convert('RGB')
+
+                pixels = np.array(img)
+                channel_means = np.mean(pixels, axis=(0, 1))
+                rgb_values.append(channel_means)
+                i += 1
+
+    rgb_values = np.array(rgb_values)
+
+    df = pd.DataFrame(rgb_values, columns=['Red', 'Green', 'Blue'])
+    colors = ['red', 'green', 'blue']
+
+    sns.boxplot(data=df, palette=colors)
+    plt.title("Distribution of channels: red, green, blue")
+    plt.xlabel('Channel')
+    plt.ylabel('Pixel values')
+    plt.show()
