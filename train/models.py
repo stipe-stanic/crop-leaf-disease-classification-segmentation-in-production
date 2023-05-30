@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch.nn.functional as F
+from torch import Tensor
 
 
 class ConvBlock(nn.Module):
@@ -22,7 +23,7 @@ class ConvBlock(nn.Module):
         return x
 
     def forward(self, x):
-        """Applies the convolutional block to the input tensor x."""
+        """Applies the convolutional block to the input tensor x"""
 
         return self.conv_block(x)
 
@@ -86,10 +87,10 @@ class ResModel(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.5),
-            nn.Linear(1024, 4)
+            nn.Linear(1024, 32)
         )
 
-    def forward(self, x):
+    def forward(self, x: Tensor) -> Tensor:
         # Conv blocks and residual blocks
         x = self.conv1(x)
         x = self.res1(x)
