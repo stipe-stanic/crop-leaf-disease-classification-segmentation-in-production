@@ -221,8 +221,6 @@ def plot_classification_report(y_true: np.ndarray, y_pred: np.ndarray, class_nam
     df = df.drop(['support'], axis=1)
     sns.heatmap(df, annot=True, cmap='YlGnBu', fmt='.2f')
     plt.title('Classification Report Heatmap')
-    plt.show()
-
     plt.show(block=False)
 
 
