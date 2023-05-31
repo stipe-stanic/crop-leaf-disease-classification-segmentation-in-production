@@ -1,11 +1,12 @@
 import os
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
-import re
 import torchsummary
 import torchvision.transforms
+
 import config
 import models
 import seaborn as sns
@@ -22,6 +23,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import ConfusionMatrixDisplay, classification_report, roc_auc_score, cohen_kappa_score
 from joblib import dump
 from img_aug_transform import CustomCLAHE
+from focal_loss import FocalLoss
+from PIL import Image
+from torch import Tensor
 
 
 def valid_file(filename: str) -> bool:
@@ -31,7 +35,7 @@ def valid_file(filename: str) -> bool:
 
 
 def find_classes(directory: str) -> Tuple[List[str], Dict[str, int]]:
-    """Finds the class folders in a dataset.
+    """Find the class folders in a dataset.
 
     This function searches for subdirectories in the specified directory and returns a list of class names and
     dictionary mapping each class name to its corresponding index.
@@ -46,7 +50,7 @@ def find_classes(directory: str) -> Tuple[List[str], Dict[str, int]]:
     :raises FileNotFoundError: If no class folders are found in the specified directory.
     """
 
-    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir() and re.search('apple', entry.name))
+    classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
     if not classes:
         raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
 
@@ -70,14 +74,13 @@ class CustomImageFolder(torchvision.datasets.DatasetFolder):
 
 
 def show_dataset(dataset: DatasetFolder | Subset, n=6) -> None:
-    """Shows grid of images as a single image
+    """Show grid of images as a single image
 
     :param dataset: Loaded torchvision dataset
     :param n: Number of rows and columns
     """
 
     # Transform image from tensor to PILImage
-
     transform = torchvision.transforms.ToPILImage()
     img = np.vstack([np.hstack([np.asarray(transform(dataset[i][0])) for _ in range(n)])
                      for i in range(n)])
@@ -87,7 +90,7 @@ def show_dataset(dataset: DatasetFolder | Subset, n=6) -> None:
 
 
 def show_batch(dataset_loader: DataLoader, num_of_images: int = 9) -> None:
-    """Displays images before feeding them to the model
+    """Display images before feeding them to the model
 
     :raises AssertionError: If number of images to display exceeds batch size
     """
@@ -115,13 +118,19 @@ def show_batch(dataset_loader: DataLoader, num_of_images: int = 9) -> None:
         print("Error:", msg)
 
 
-def custom_clahe_transform(img):
+def custom_clahe_transform(img: Image) -> Image:
+    """Apply custom Contrast Limited Adaptive Histogram Equalization (CLAHE) transformation to an image.
+
+    :param img: The input image to be transformed.
+    :returns: The transformed image.
+    """
+
     transform = CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8))
     return transform(img)
 
 
 def loader_shape(dataset_loader: DataLoader) -> Tuple[torch.Size, torch.Size]:
-    """Prints shape of loaded dataset
+    """Print shape of loaded dataset
 
     :returns: Tuple of tensor shapes (images, labels)
     """
@@ -133,6 +142,11 @@ def loader_shape(dataset_loader: DataLoader) -> Tuple[torch.Size, torch.Size]:
 
 
 def get_device() -> torch.device:
+    """Get the device for running PyTorch computations.
+
+    :returns: torch.device: The selected device (CPU or GPU).
+    """
+
     cuda = torch.cuda.is_available()
     device = torch.device("cuda" if cuda else "cpu")
 
@@ -140,12 +154,21 @@ def get_device() -> torch.device:
 
 
 def stratify_split(dataset: CustomImageFolder) -> Tuple[Subset, Subset, Subset]:
+    """Split a dataset into training, validation, and test subsets while preserving class distribution.
+
+    :param: dataset: The dataset to be split.
+    :returns: The training, validation, and test subsets.
+    """
+
+    # Split the dataset the to ratio of 80/20
     train_size = int(len(dataset) * 0.8)
     val_size = int(len(dataset) * 0.1)
     test_size = len(dataset) - train_size - val_size
 
-    # Split the dataset -> using sklearn split method with stratify
+    # Converts the dataset targets to a numpy array
     targets = np.array(dataset.targets)
+
+    # Splits the indices into train and temp sets, stratifying based on targets
     train_idx, temp_idx = train_test_split(
         np.arange(len(dataset)),
         test_size=val_size + test_size,
@@ -154,6 +177,7 @@ def stratify_split(dataset: CustomImageFolder) -> Tuple[Subset, Subset, Subset]:
         random_state=config.seed
     )
 
+    # Split the temp indices into validation and test sets
     val_idx, test_idx = train_test_split(
         temp_idx,
         test_size=test_size,
@@ -169,26 +193,56 @@ def stratify_split(dataset: CustomImageFolder) -> Tuple[Subset, Subset, Subset]:
     return train_dataset, val_dataset, test_dataset
 
 
-def plot_confusion_matrix(y_test, y_pred, class_names):
+def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, class_names: List[str]) -> None:
+    """Plot the confusion matrix using a heatmap.
+
+   :param y_true: True labels of the test set.
+   :param y_pred: Predicted labels of the test set.
+   :param class_names: List of class names.
+   """
+
     fig, ax = plt.subplots(figsize=(10, 10))
-    ConfusionMatrixDisplay.from_predictions(y_test, y_pred, display_labels=class_names, xticks_rotation="vertical",
+    ConfusionMatrixDisplay.from_predictions(y_true, y_pred, display_labels=class_names,
+                                            normalize='true', xticks_rotation="vertical",
                                             ax=ax, colorbar=False)
     plt.show(block=False)
 
 
-class LR_ASK():
-    def __init__(self, model, optimizer, epochs, ask_epoch):
+def plot_classification_report(y_true: np.ndarray, y_pred: np.ndarray, class_names: List[str]) -> None:
+    """Plot a heatmap visualization of a classification report.
+
+    :param y_true: True labels of the test set .
+    :param y_pred: Predicted labels of the test set.
+    :param class_names: A list of class names corresponding to the labels.
+    """
+
+    report = classification_report(y_true, y_pred, target_names=class_names, output_dict=True)
+    df = pd.DataFrame(report).transpose()
+    df = df.drop(['support'], axis=1)
+    sns.heatmap(df, annot=True, cmap='YlGnBu', fmt='.2f')
+    plt.title('Classification Report Heatmap')
+    plt.show()
+
+    plt.show(block=False)
+
+
+class LR_ASK:
+    def __init__(self, model: nn.Module, optimizer: optim.Optimizer, epochs: int, ask_epoch: int):
         self.model = model
         self.optimizer = optimizer
-        self.ask_epoch = ask_epoch
         self.epochs = epochs
+        self.ask_epoch = ask_epoch
         self.ask = True
-        self.lowest_vloss = np.inf
+        self.lowest_vloss = float('inf')
         self.best_weights = model.state_dict()
         self.best_epoch = 1
         self.start_time = None
 
-    def on_train_begin(self):
+    def on_train_begin(self) -> None:
+        """Method called at the beginning of the training process, checks the ask_epoch and epochs values to determine
+        the behavior of training
+        """
+
         if self.ask_epoch == 0:
             print('You set ask_epoch = 0, ask_epoch will be set to 1', flush=True)
             self.ask_epoch = 1
@@ -196,8 +250,7 @@ class LR_ASK():
         if self.ask_epoch >= self.epochs:
             print('Ask_epoch >= epochs, will train for', self.epochs, 'epochs', flush=True)
             self.ask = False
-
-        if self.epochs == 1:
+        elif self.epochs == 1:
             self.ask = False
         else:
             print('Training will proceed until epoch', self.ask_epoch,
@@ -206,23 +259,34 @@ class LR_ASK():
 
         self.start_time = time.time()
 
-    def on_train_end(self):
+    def on_train_end(self) -> None:
+        """Called at the end of the training process, loads the weights of the model with the lowest
+        validation loss
+        """
+
         print('Loading model with weights from epoch', self.best_epoch)
         self.model.load_state_dict(self.best_weights)
 
-        tr_duration = time.time() - self.start_time
-        hours = int(tr_duration // 3600)
-        minutes = int((tr_duration % 3600) // 60)
-        seconds = tr_duration % 60
-        msg = f'Training elapsed time was {hours:02d}h:{minutes:02d}m:{seconds:02.0f}s'
+        train_duration = time.time() - self.start_time
+        hours = int(train_duration // 3600)
+        minutes = int((train_duration % 3600) // 60)
+        seconds = train_duration % 60
+
+        msg = f'Training time: {hours:02d}h:{minutes:02d}m:{seconds:02.0f}s'
         print(msg, flush=True)
 
-    def on_epoch_end(self, epoch, val_loss):
+    def on_epoch_end(self, epoch: int, val_loss: Tensor):
+        """Called at the end of each training epoch, receives the current epoch number
+        and the validation loss tensor. Saves the best weights if v_loss is lower.
+        """
+
+        # Extracts the scalar value from validation loss tensor
         v_loss = val_loss.item()
         if v_loss < self.lowest_vloss:
             self.lowest_vloss = v_loss
             self.best_weights = self.model.state_dict()
             self.best_epoch = epoch + 1
+
             print(f'\nValidation loss of {v_loss:.4f} is below lowest loss,'
                   f' saving weights from epoch {str(epoch + 1)} as best weights')
         else:
@@ -233,13 +297,14 @@ class LR_ASK():
             print('\nEnter H(h) to end training or enter an integer for the number of additional epochs to run')
             ans = input()
 
-            if ans == 'H' or ans == 'h' or ans == '0':
+            if ans == 'H' or ans == 'h':
                 print(f'You entered {ans}, training halted on epoch {epoch + 1}, due to user input\n', flush=True)
                 raise KeyboardInterrupt
             else:
                 self.ask_epoch += int(ans)
                 if self.ask_epoch > self.epochs:
-                    print('\nYou specified maximum epochs as', self.epochs, 'cannot train for', self.ask_epoch, flush=True)
+                    print('\nYou specified maximum epochs as', self.epochs,
+                          'cannot train for', self.ask_epoch, flush=True)
                 else:
                     print(f'You entered {ans}, training will continue to epoch {self.ask_epoch}', flush=True)
 
@@ -265,7 +330,6 @@ def train():
     dataset_transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224)),
         torchvision.transforms.ToTensor(),
-        # old values (0.44050441, 0.47175582, 0.4283929), (0.16995976, 0.14400921, 0.19573698)
         torchvision.transforms.Normalize((0.46445759, 0.49094302, 0.41258632), (0.1741543, 0.14767326, 0.19304359))
     ])
 
@@ -273,6 +337,9 @@ def train():
 
     dataset = CustomImageFolder(root=config.root_dir, loader=default_loader, transform=dataset_transforms)
     show_dataset(dataset)
+
+    class_names = dataset.classes
+    num_classes = len(dataset.classes)
 
     train_dataset, val_dataset, test_dataset = stratify_split(dataset)
 
@@ -315,9 +382,10 @@ def train():
     model = models.ResModel().to(device)
     torchsummary.summary(model, (3, 224, 224), batch_size=config.batch_size)
 
-    loss_fn = nn.NLLLoss().to(device)
+    # loss_fn = nn.NLLLoss().to(device)
+    loss_fn = FocalLoss(alpha=config.focal_loss['alpha'], gamma=config.focal_loss['gamma'],
+                        num_classes=num_classes).to(device)
 
-    # optimizer = optim.RMSprop(model.parameters()) # default lr=0.01
     optimizer = optim.Adamax(model.parameters(), lr=config.adamax_lr, weight_decay=config.adamax_weight_decay)
     scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=2)
 
@@ -349,11 +417,14 @@ def train():
 
             writer.add_scalar('loss', loss.item(), (e * train_per_epoch) + idx)
 
+            # squeeze() removes singleton dimensions, resulting in a 1D tensor representing
+            # the predicted class labels for each input sample
             predictions = output.argmax(dim=1, keepdims=True).squeeze()
+
             correct = (predictions == labels).sum().item()
             accuracy = correct / len(predictions)
 
-            loop.set_description(f"Epoch [{e}/{config.epochs}]")
+            loop.set_description(f"Epoch [{e + 1}/{config.epochs}]")
             loop.set_postfix(loss=loss.item(), acc=accuracy)
             writer.add_scalar('acc', accuracy, (e * train_per_epoch) + idx)
 
@@ -364,17 +435,19 @@ def train():
                 'epoch': e,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss.item(),
+                'loss': loss,
             }, '../models_storage/curr_model_state/last_train_model_state.pth')
 
         train_acc /= len(train_dataset)
         train_loss = np.array(train_losses).mean()
-        print(f'Epoch [{e}/{config.epochs}]: Train accuracy = {train_acc:.4f} Validation loss: {train_loss:.4f}')
+        print(f'Epoch [{e + 1}/{config.epochs}]: Train accuracy = {train_acc:.4f} Train loss: {train_loss:.4f}')
 
         scheduler.step()
 
         val_acc = 0.0
         val_losses = []
+
+        # Disables dropout layers and batch normalization layers use population statistics for normalization
         model.eval()
         with torch.no_grad():
             for x, y in val_loader:
@@ -385,12 +458,14 @@ def train():
                 val_loss = loss_fn(scores, y)
                 val_losses.append(val_loss.item())
 
+                # max() function computes maximum value and its corresponding index along dim=1 axis. Returns tensor
+                # containing the maximum values and tensor containing the indices of maximum values
                 _, predictions = scores.max(1)
                 val_acc += (predictions == y).sum().item()
 
         val_acc /= len(val_dataset)
         val_loss = np.array(val_losses).mean()
-        print(f'Epoch [{e}/{config.epochs}]: Validation accuracy = {val_acc:.4f} Validation loss: {val_loss:.4f}')
+        print(f'Epoch [{e + 1}/{config.epochs}]: Validation accuracy = {val_acc:.4f} Validation loss: {val_loss:.4f}')
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -398,7 +473,7 @@ def train():
                 'epoch': e,
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss.item()
+                'loss': loss
             }, '../models_storage/curr_model_state/best_val_loss_checkpoint.pth')
 
         try:
@@ -415,7 +490,6 @@ def train():
     model.eval()
     with torch.no_grad():
         for x, y in test_loader:  # images, labels
-            # x = x.to(device, non_blocking=True).view(images.shape[0], -1)
             x = x.to(device=device)
             y = y.to(device=device)
 
@@ -433,22 +507,21 @@ def train():
         y_pred = np.array(y_pred)
         y_score = np.array(y_score)
 
+        # axis=0: column-wise sum, axis=1: row-wise sum
         y_prob = np.exp(y_score) / np.sum(np.exp(y_score), axis=1, keepdims=True)
 
         print(f'Number of correct {num_correct} of total {num_samples} with accuracy of'
               f' {float(num_correct) / float(num_samples) * 100:.2f}%\n')
 
+        # Measures the model's ability to distinguish between the positive and negative classes,
+        # 'ovr' treats one class as positive and the remaining classes as negative
         print(f'Area under the ROC curve: {roc_auc_score(y_true, y_prob, multi_class="ovr")}')
+
+        # Provides a measure of agreement that is adjusted for the possibility of agreement occurring by chance
         print(f'Cohen kappa score: {cohen_kappa_score(y_true, y_pred)}')
 
-    plot_confusion_matrix(y_true, y_pred, dataset.classes)
-
-    report = classification_report(y_true, y_pred, target_names=dataset.classes, output_dict=True)
-    df = pd.DataFrame(report).transpose()
-    df = df.drop(['support'], axis=1)
-    sns.heatmap(df, annot=True, cmap='YlGnBu', fmt='.2f')
-    plt.title('Classification Report Heatmap')
-    plt.show()
+    plot_confusion_matrix(y_true, y_pred, class_names)
+    plot_classification_report(y_true, y_pred, class_names)
 
     torch.save(model.state_dict(), '../models_storage/saved_models/ResModel.pth')
 
