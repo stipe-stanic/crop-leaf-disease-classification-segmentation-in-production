@@ -225,6 +225,8 @@ def plot_classification_report(y_true: np.ndarray, y_pred: np.ndarray, class_nam
 
 
 class LR_ASK:
+    """Helper class that provides functionality for controlling the training process."""
+
     def __init__(self, model: nn.Module, optimizer: optim.Optimizer, epochs: int, ask_epoch: int):
         self.model = model
         self.optimizer = optimizer
@@ -397,6 +399,8 @@ def train():
     for e in range(config.epochs):
         print(f'Learning rate: {scheduler.get_last_lr()[0]}')
         loop = tqdm(enumerate(train_loader), total=len(train_loader), leave=True)
+
+        # Training step
         model.train()
 
         train_acc = 0
@@ -442,6 +446,7 @@ def train():
 
         scheduler.step()
 
+        # Validation step
         val_acc = 0.0
         val_losses = []
 
@@ -481,6 +486,9 @@ def train():
 
     lr_ask_callback.on_train_end()
 
+    torch.save(model.state_dict(), '../models_storage/saved_models/ResModel.pth')
+
+    # Testing step
     num_correct = 0
     num_samples = 0
     y_true, y_pred, y_score = [], [], []
@@ -520,8 +528,6 @@ def train():
 
     plot_confusion_matrix(y_true, y_pred, class_names)
     plot_classification_report(y_true, y_pred, class_names)
-
-    torch.save(model.state_dict(), '../models_storage/saved_models/ResModel.pth')
 
 
 if __name__ == '__main__':
