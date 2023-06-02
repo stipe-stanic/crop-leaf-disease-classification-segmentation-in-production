@@ -1,7 +1,7 @@
 root_dir = "../data/plant_dataset_original/plant_diseases_images"
 
 batch_size = 32
-epochs = 6
+epochs = 22
 seed = 255
 
 focal_loss = {

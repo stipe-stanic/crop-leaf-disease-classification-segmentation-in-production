@@ -387,9 +387,9 @@ def train():
                         num_classes=num_classes).to(device)
 
     optimizer = optim.Adamax(model.parameters(), lr=config.adamax_lr, weight_decay=config.adamax_weight_decay)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=2)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=3)
 
-    lr_ask_callback = LR_ASK(model, optimizer, config.epochs, ask_epoch=2)
+    lr_ask_callback = LR_ASK(model, optimizer, config.epochs, ask_epoch=3)
 
     best_val_loss = float('inf')
     loss = None
