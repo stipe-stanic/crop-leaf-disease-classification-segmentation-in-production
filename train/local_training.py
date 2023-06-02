@@ -20,7 +20,7 @@ from torch.utils.data import random_split
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import ConfusionMatrixDisplay, classification_report, roc_auc_score, cohen_kappa_score
+from sklearn.metrics import classification_report, roc_auc_score, cohen_kappa_score, ConfusionMatrixDisplay
 from joblib import dump
 from img_aug_transform import CustomCLAHE
 from focal_loss import FocalLoss
@@ -201,10 +201,11 @@ def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, class_names: L
    :param class_names: List of class names.
    """
 
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(22, 20))
     ConfusionMatrixDisplay.from_predictions(y_true, y_pred, display_labels=class_names,
                                             normalize='true', xticks_rotation="vertical",
                                             ax=ax, colorbar=False)
+    plt.title('Confusion matrix')
     plt.show(block=False)
 
 
@@ -219,6 +220,7 @@ def plot_classification_report(y_true: np.ndarray, y_pred: np.ndarray, class_nam
     report = classification_report(y_true, y_pred, target_names=class_names, output_dict=True)
     df = pd.DataFrame(report).transpose()
     df = df.drop(['support'], axis=1)
+    plt.figure(figsize=(18, 15))
     sns.heatmap(df, annot=True, cmap='YlGnBu', fmt='.2f')
     plt.title('Classification Report Heatmap')
     plt.show(block=False)
@@ -382,111 +384,114 @@ def train():
     model = models.ResModel().to(device)
     torchsummary.summary(model, (3, 224, 224), batch_size=config.batch_size)
 
-    # loss_fn = nn.NLLLoss().to(device)
-    loss_fn = FocalLoss(alpha=config.focal_loss['alpha'], gamma=config.focal_loss['gamma'],
-                        num_classes=num_classes).to(device)
+    if config.load_trained_model:
+        model.load_state_dict(torch.load('../models_storage/export_models/ResModel.pth', map_location=device))
+    else:
+        # loss_fn = nn.NLLLoss().to(device)
+        loss_fn = FocalLoss(alpha=config.focal_loss['alpha'], gamma=config.focal_loss['gamma'],
+                            num_classes=num_classes).to(device)
 
-    optimizer = optim.Adamax(model.parameters(), lr=config.adamax_lr, weight_decay=config.adamax_weight_decay)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=3)
+        optimizer = optim.Adamax(model.parameters(), lr=config.adamax_lr, weight_decay=config.adamax_weight_decay)
+        scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=3)
 
-    lr_ask_callback = LR_ASK(model, optimizer, config.epochs, ask_epoch=3)
+        lr_ask_callback = LR_ASK(model, optimizer, config.epochs, ask_epoch=3)
 
-    best_val_loss = float('inf')
-    loss = None
+        best_val_loss = float('inf')
+        loss = None
 
-    train_per_epoch = int(len(train_dataset) / config.batch_size)
-    lr_ask_callback.on_train_begin()
-    for e in range(config.epochs):
-        print(f'Learning rate: {scheduler.get_last_lr()[0]}')
-        loop = tqdm(enumerate(train_loader), total=len(train_loader), leave=True)
+        train_per_epoch = int(len(train_dataset) / config.batch_size)
+        lr_ask_callback.on_train_begin()
+        for e in range(config.epochs):
+            print(f'Learning rate: {scheduler.get_last_lr()[0]}')
+            loop = tqdm(enumerate(train_loader), total=len(train_loader), leave=True)
 
-        # Training step
-        model.train()
+            # Training step
+            model.train()
 
-        train_acc = 0
-        train_losses = []
-        for idx, (images, labels) in loop:
-            images = images.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
+            train_acc = 0
+            train_losses = []
+            for idx, (images, labels) in loop:
+                images = images.to(device, non_blocking=True)
+                labels = labels.to(device, non_blocking=True)
 
-            optimizer.zero_grad()
+                optimizer.zero_grad()
 
-            output = model(images)
-            loss = loss_fn(output, labels)
+                output = model(images)
+                loss = loss_fn(output, labels)
 
-            loss.backward()
-            optimizer.step()
+                loss.backward()
+                optimizer.step()
 
-            writer.add_scalar('loss', loss.item(), (e * train_per_epoch) + idx)
+                writer.add_scalar('loss', loss.item(), (e * train_per_epoch) + idx)
 
-            # squeeze() removes singleton dimensions, resulting in a 1D tensor representing
-            # the predicted class labels for each input sample
-            predictions = output.argmax(dim=1, keepdims=True).squeeze()
+                # squeeze() removes singleton dimensions, resulting in a 1D tensor representing
+                # the predicted class labels for each input sample
+                predictions = output.argmax(dim=1, keepdims=True).squeeze()
 
-            correct = (predictions == labels).sum().item()
-            accuracy = correct / len(predictions)
+                correct = (predictions == labels).sum().item()
+                accuracy = correct / len(predictions)
 
-            loop.set_description(f"Epoch [{e + 1}/{config.epochs}]")
-            loop.set_postfix(loss=loss.item(), acc=accuracy)
-            writer.add_scalar('acc', accuracy, (e * train_per_epoch) + idx)
+                loop.set_description(f"Epoch [{e + 1}/{config.epochs}]")
+                loop.set_postfix(loss=loss.item(), acc=accuracy)
+                writer.add_scalar('acc', accuracy, (e * train_per_epoch) + idx)
 
-            train_acc += correct
-            train_losses.append(loss.item())
-        else:
-            torch.save({
-                'epoch': e,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss,
-            }, '../models_storage/curr_model_state/last_train_model_state.pth')
+                train_acc += correct
+                train_losses.append(loss.item())
+            else:
+                torch.save({
+                    'epoch': e,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss,
+                }, '../models_storage/curr_model_state/last_train_model_state.pth')
 
-        train_acc /= len(train_dataset)
-        train_loss = np.array(train_losses).mean()
-        print(f'Epoch [{e + 1}/{config.epochs}]: Train accuracy = {train_acc:.4f} Train loss: {train_loss:.4f}')
+            train_acc /= len(train_dataset)
+            train_loss = np.array(train_losses).mean()
+            print(f'Epoch [{e + 1}/{config.epochs}]: Train accuracy = {train_acc:.4f} Train loss: {train_loss:.4f}')
 
-        scheduler.step()
+            scheduler.step()
 
-        # Validation step
-        val_acc = 0.0
-        val_losses = []
+            # Validation step
+            val_acc = 0.0
+            val_losses = []
 
-        # Disables dropout layers and batch normalization layers use population statistics for normalization
-        model.eval()
-        with torch.no_grad():
-            for x, y in val_loader:
-                x = x.to(device=device)
-                y = y.to(device=device)
+            # Disables dropout layers and batch normalization layers use population statistics for normalization
+            model.eval()
+            with torch.no_grad():
+                for x, y in val_loader:
+                    x = x.to(device=device)
+                    y = y.to(device=device)
 
-                scores = model(x)
-                val_loss = loss_fn(scores, y)
-                val_losses.append(val_loss.item())
+                    scores = model(x)
+                    val_loss = loss_fn(scores, y)
+                    val_losses.append(val_loss.item())
 
-                # max() function computes maximum value and its corresponding index along dim=1 axis. Returns tensor
-                # containing the maximum values and tensor containing the indices of maximum values
-                _, predictions = scores.max(1)
-                val_acc += (predictions == y).sum().item()
+                    # max() function computes maximum value and its corresponding index along dim=1 axis. Returns tensor
+                    # containing the maximum values and tensor containing the indices of maximum values
+                    _, predictions = scores.max(1)
+                    val_acc += (predictions == y).sum().item()
 
-        val_acc /= len(val_dataset)
-        val_loss = np.array(val_losses).mean()
-        print(f'Epoch [{e + 1}/{config.epochs}]: Validation accuracy = {val_acc:.4f} Validation loss: {val_loss:.4f}')
+            val_acc /= len(val_dataset)
+            val_loss = np.array(val_losses).mean()
+            print(f'Epoch [{e + 1}/{config.epochs}]: Validation accuracy = {val_acc:.4f} Validation loss: {val_loss:.4f}')
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
-            torch.save({
-                'epoch': e,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'loss': loss
-            }, '../models_storage/curr_model_state/best_val_loss_checkpoint.pth')
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                torch.save({
+                    'epoch': e,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'loss': loss
+                }, '../models_storage/curr_model_state/best_val_loss_checkpoint.pth')
 
-        try:
-            lr_ask_callback.on_epoch_end(e, val_loss)
-        except KeyboardInterrupt:
-            break
+            try:
+                lr_ask_callback.on_epoch_end(e, val_loss)
+            except KeyboardInterrupt:
+                break
 
-    lr_ask_callback.on_train_end()
+        lr_ask_callback.on_train_end()
 
-    torch.save(model.state_dict(), '../models_storage/saved_models/ResModel.pth')
+        torch.save(model.state_dict(), '../models_storage/saved_models/ResModel.pth')
 
     # Testing step
     num_correct = 0

@@ -4,6 +4,8 @@ batch_size = 32
 epochs = 22
 seed = 255
 
+load_trained_model = False
+
 focal_loss = {
     'alpha': 0.50,
     'gamma': 1.75
