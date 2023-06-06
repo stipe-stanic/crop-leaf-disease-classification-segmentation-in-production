@@ -1,4 +1,5 @@
 import os
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -331,8 +332,9 @@ def train():
 
     dataset_transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224)),
+        torchvision.transforms.Lambda(custom_clahe_transform),  # increases contrast in a smart way
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.46445759, 0.49094302, 0.41258632), (0.1741543, 0.14767326, 0.19304359))
+        torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
     ])
 
     dump(dataset_transforms, '../models_storage/saved_models/transform.joblib', compress=True)
@@ -350,21 +352,19 @@ def train():
     print(f"Number of test samples: {len(test_dataset)}")
 
     train_transforms = torchvision.transforms.Compose([
-        torchvision.transforms.Lambda(custom_clahe_transform),  # increases contrast in a smart way
-        torchvision.transforms.CenterCrop(224),
-        torchvision.transforms.RandomResizedCrop(224),
+        torchvision.transforms.Resize((224, 224)),
+        torchvision.transforms.RandomResizedCrop((224, 224), scale=(0.25, 1.0)),
         torchvision.transforms.RandomHorizontalFlip(),
         torchvision.transforms.RandomVerticalFlip(),
         torchvision.transforms.RandomRotation(20, interpolation=torchvision.transforms.InterpolationMode.BILINEAR,
                                               expand=False),
+        torchvision.transforms.Lambda(custom_clahe_transform),
         torchvision.transforms.ColorJitter(brightness=.05, contrast=0.5, saturation=.05, hue=.05),
-        torchvision.transforms.Resize((224, 224)),
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
     ])
 
     train_dataset.dataset.transform = train_transforms
-    show_dataset(train_dataset)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True,
                                                num_workers=2, pin_memory=True,
@@ -388,8 +388,10 @@ def train():
         model.load_state_dict(torch.load('../models_storage/export_models/ResModel.pth', map_location=device))
     else:
         # loss_fn = nn.NLLLoss().to(device)
-        loss_fn = FocalLoss(alpha=config.focal_loss['alpha'], gamma=config.focal_loss['gamma'],
-                            num_classes=num_classes).to(device)
+        loss_fn = FocalLoss(num_classes=num_classes,
+                            alpha=config.focal_loss['alpha'],
+                            gamma=config.focal_loss['gamma'],
+                            ).to(device)
 
         optimizer = optim.Adamax(model.parameters(), lr=config.adamax_lr, weight_decay=config.adamax_weight_decay)
         scheduler = optim.lr_scheduler.StepLR(optimizer, gamma=0.5, step_size=3)
@@ -455,7 +457,7 @@ def train():
             val_acc = 0.0
             val_losses = []
 
-            # Disables dropout layers and batch normalization layers use population statistics for normalization
+            # Disables dropout layers, batch normalization layers use population statistics for normalization
             model.eval()
             with torch.no_grad():
                 for x, y in val_loader:

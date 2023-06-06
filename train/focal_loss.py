@@ -7,7 +7,7 @@ from torch import Tensor
 
 
 class FocalLoss(nn.Module):
-    def __init__(self, alpha: float = 0.25, gamma: float = 2.0, num_classes=4):
+    def __init__(self, num_classes, alpha: float = 0.25, gamma: float = 2.0):
         """Focal loss for multiclass classification.
 
         :param alpha: Weighting factor, positive class samples are given four times less weight than negative class samples.

@@ -25,13 +25,13 @@ def response_from_server(url, image_file, verbose=True) -> requests.models.Respo
 
 
 if __name__ == '__main__':
-    base_url = local_config.google_cloud_service
+    base_url = local_config.base_url
     endpoint = '/predict'
     model = 'res-model'
 
     full_url = base_url + endpoint + '?model=' + model
 
-    with open('images_post/apple_cedar_apple_rust5.jpg', 'rb') as image_file:
+    with open('images_post/potato/potato_early_blight19.jpg', 'rb') as image_file:
         prediction = response_from_server(full_url, image_file)
 
     response_json = prediction.json()

@@ -15,6 +15,18 @@ from enum import Enum
 from PIL import Image
 from train.models import ResModel
 from torch import Tensor
+from img_aug_transform import CustomCLAHE
+
+
+def custom_clahe_transform(img: Image) -> Image:
+    """Apply custom Contrast Limited Adaptive Histogram Equalization (CLAHE) transformation to an image.
+
+    :param img: The input image to be transformed.
+    :returns: The transformed image.
+    """
+
+    transform = CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8))
+    return transform(img)
 
 
 def preprocess(package: dict, input_image: Image) -> Tensor:
@@ -54,7 +66,7 @@ class Model(str, Enum):
 app = FastAPI(
     title='ML Model',
     description='Model for classification of plant diseases',
-    version='0.0.1',
+    version='0.0.2',
 )
 
 app.add_middleware(CORSMiddleware, allow_origins=['*'])
@@ -68,11 +80,11 @@ async def startup_event():
     logger.info(f'Pytorch using device: {device}')
 
     model = ResModel().to(device)
-    model.load_state_dict(torch.load('../../../models_storage/saved_models/ResModel.pth', map_location=device))
+    model.load_state_dict(torch.load('../../../models_storage/export_models/ResModel.pth', map_location=device))
     model.eval()
 
     app.package = {
-        'transform': joblib.load('../../../models_storage/saved_models/transform.joblib'),
+        'transform': joblib.load('../../../models_storage/export_models/transform.joblib'),
         'model': model,
         'device': device
     }
@@ -99,9 +111,17 @@ async def do_prediction(model: Model, file: UploadFile = File(...)) -> dict:
 
     y = predict(app.package, image)[0]
 
-    pred = ['apple_black_rot', 'apple_cedar_rust', 'apple_healthy', 'apple_scab'][y.argmax()]
+    probabilities = np.exp(y) / np.sum(np.exp(y))
+    predicted_class_index = np.argmax(probabilities)
+    confidence_percentage = probabilities[predicted_class_index] * 100
+    print(confidence_percentage)
 
-    return {'prediction': pred}
+    pred = local_config.class_names[predicted_class_index]
+
+    return {
+        'prediction': pred,
+        'confidence': confidence_percentage
+        }
 
 
 if __name__ == '__main__':
