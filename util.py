@@ -14,7 +14,7 @@ from torchvision.datasets.folder import DatasetFolder
 from torch.utils.data import DataLoader, Subset
 from typing import Tuple, List
 from PIL import Image
-from img_aug_transform import ImgAugGenerate
+from img_aug_generate import ImgAugGenerate
 from train import config
 
 

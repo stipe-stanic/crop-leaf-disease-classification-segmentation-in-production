@@ -168,10 +168,12 @@ models_storage/
 
 # deployment local configuration
 deployment/local/config.py
-deployment/local/server/images_uploaded
+deployment/local/server/local_log
+deployment/local/client/images_post
 
 # deployment docker configuration
 deployment/docker/model
+deployment/docker/app/log
 
 # Script for saving helper function and classes currently not in use
 util_commented.py
