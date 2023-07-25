@@ -1,32 +1,26 @@
 import os
-import cv2
-import dill
-import joblib
-
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import torch
 import torchsummary
 import torchvision.transforms
-
 import config
-import models
-import seaborn as sns
-import time
 
 from typing import List, Dict, Tuple
-from torch import nn, optim
+from torch import optim
 from tqdm import tqdm
 from torchvision.datasets.folder import default_loader, DatasetFolder
 from torch.utils.data import random_split
 from torch.utils.data import DataLoader, Subset
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, roc_auc_score, cohen_kappa_score, ConfusionMatrixDisplay
-from focal_loss import FocalLoss
-from PIL import Image
-from torch import Tensor
+from sklearn.metrics import roc_auc_score, cohen_kappa_score
+
+from train_util.focal_loss import FocalLoss
+from train_util.custom_clahe import CustomCLAHE
+from train_util.plotting import plot_confusion_matrix, plot_classification_report
+from res_model import ResModel
+from train_util.lr_ask import LR_ASK
 
 
 def valid_file(filename: str) -> bool:
@@ -119,52 +113,15 @@ def show_batch(dataset_loader: DataLoader, num_of_images: int = 9) -> None:
         print("Error:", msg)
 
 
-class CustomCLAHE(object):
-    def __init__(self, clip_limit: float = 2.0, tile_grid_size: Tuple[int, int] = (8, 8)):
-        """Initializes an object of CustomCLAHE class with specified parameters.
-
-        :param clip_limit: The contrast limit.
-        :param tile_grid_size: The size of the grid.
-        """
-
-        self.clip_limit = clip_limit
-        self.tile_grid_size = tile_grid_size
-
-    def __call__(self, img: Image) -> Image:
-        """Applies Contrast Limited Adaptive Histogram Equalization to the input image.
-
-        :param img: The input image.
-        :returns: The equalized image.
-        """
-
-        img = np.array(img)
-
-        # Converts the image from BGR to LAB color space
-        lab_image = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-        l_channel, a_channel, b_channel = cv2.split(lab_image)
-
-        # Applies CLAHE to L channel
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        equalized_l_channel = clahe.apply(l_channel)
-
-        # Merges the equalized L channel with original a and b channels
-        equalized_lab_image = cv2.merge([equalized_l_channel, a_channel, b_channel])
-
-        # Converts the equalized LAB image back to BGR color space
-        equalized_bgr_image = cv2.cvtColor(equalized_lab_image, cv2.COLOR_LAB2BGR)
-
-        return Image.fromarray(equalized_bgr_image)
-
-
-def custom_clahe_transform(img: Image) -> Image:
-    """Apply custom Contrast Limited Adaptive Histogram Equalization (CLAHE) transformation to an image.
-
-    :param img: The input image to be transformed.
-    :returns: The transformed image.
-    """
-
-    transform = CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8))
-    return transform(img)
+# def custom_clahe_transform(img: Image) -> Image:
+#     """Apply custom Contrast Limited Adaptive Histogram Equalization (CLAHE) transformation to an image.
+#
+#     :param img: The input image to be transformed.
+#     :returns: The transformed image.
+#     """
+#
+#     transform = CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8))
+#     return transform(img)
 
 
 def loader_shape(dataset_loader: DataLoader) -> Tuple[torch.Size, torch.Size]:
@@ -231,136 +188,6 @@ def stratify_split(dataset: CustomImageFolder) -> Tuple[Subset, Subset, Subset]:
     return train_dataset, val_dataset, test_dataset
 
 
-def plot_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, class_names: List[str]) -> None:
-    """Plot the confusion matrix using a heatmap.
-
-   :param y_true: True labels of the test set.
-   :param y_pred: Predicted labels of the test set.
-   :param class_names: List of class names.
-   """
-
-    fig, ax = plt.subplots(figsize=(22, 20))
-    ConfusionMatrixDisplay.from_predictions(y_true, y_pred, display_labels=class_names,
-                                            normalize='true', xticks_rotation="vertical",
-                                            ax=ax, colorbar=False)
-    plt.title('Confusion matrix')
-    plt.show(block=False)
-
-
-def plot_classification_report(y_true: np.ndarray, y_pred: np.ndarray, class_names: List[str]) -> None:
-    """Plot a heatmap visualization of a classification report.
-
-    :param y_true: True labels of the test set .
-    :param y_pred: Predicted labels of the test set.
-    :param class_names: A list of class names corresponding to the labels.
-    """
-
-    report = classification_report(y_true, y_pred, target_names=class_names, output_dict=True)
-    df = pd.DataFrame(report).transpose()
-    df = df.drop(['support'], axis=1)
-    plt.figure(figsize=(18, 15))
-    sns.heatmap(df, annot=True, cmap='YlGnBu', fmt='.2f')
-    plt.title('Classification Report Heatmap')
-    plt.show(block=False)
-
-
-class LR_ASK:
-    """Helper class that provides functionality for controlling the training process."""
-
-    def __init__(self, model: nn.Module, optimizer: optim.Optimizer, epochs: int, ask_epoch: int):
-        self.model = model
-        self.optimizer = optimizer
-        self.epochs = epochs
-        self.ask_epoch = ask_epoch
-        self.ask = True
-        self.lowest_vloss = float('inf')
-        self.best_weights = model.state_dict()
-        self.best_epoch = 1
-        self.start_time = None
-
-    def on_train_begin(self) -> None:
-        """Method called at the beginning of the training process, checks the ask_epoch and epochs values to determine
-        the behavior of training
-        """
-
-        if self.ask_epoch == 0:
-            print('You set ask_epoch = 0, ask_epoch will be set to 1', flush=True)
-            self.ask_epoch = 1
-
-        if self.ask_epoch >= self.epochs:
-            print('Ask_epoch >= epochs, will train for', self.epochs, 'epochs', flush=True)
-            self.ask = False
-        elif self.epochs == 1:
-            self.ask = False
-        else:
-            print('Training will proceed until epoch', self.ask_epoch,
-                  'then you will be asked to enter H(h) to halt training or enter an integer'
-                  ' to continue training for n number of epochs')
-
-        self.start_time = time.time()
-
-    def on_train_end(self) -> None:
-        """Called at the end of the training process, loads the weights of the model with the lowest
-        validation loss
-        """
-
-        print('Loading model with weights from epoch', self.best_epoch)
-        self.model.load_state_dict(self.best_weights)
-
-        train_duration = time.time() - self.start_time
-        hours = int(train_duration // 3600)
-        minutes = int((train_duration % 3600) // 60)
-        seconds = train_duration % 60
-
-        msg = f'Training time: {hours:02d}h:{minutes:02d}m:{seconds:02.0f}s'
-        print(msg, flush=True)
-
-    def on_epoch_end(self, epoch: int, val_loss: Tensor):
-        """Called at the end of each training epoch, receives the current epoch number
-        and the validation loss tensor. Saves the best weights if v_loss is lower.
-        """
-
-        # Extracts the scalar value from validation loss tensor
-        v_loss = val_loss.item()
-        if v_loss < self.lowest_vloss:
-            self.lowest_vloss = v_loss
-            self.best_weights = self.model.state_dict()
-            self.best_epoch = epoch + 1
-
-            print(f'\nValidation loss of {v_loss:.4f} is below lowest loss,'
-                  f' saving weights from epoch {str(epoch + 1)} as best weights')
-        else:
-            print(f'\nValidation loss of {v_loss:.4f} is above lowest loss of {self.lowest_vloss:.4f}'
-                  f' keeping weights from epoch {str(self.best_epoch)} as best weights')
-
-        if self.ask and epoch + 1 == self.ask_epoch:
-            print('\nEnter H(h) to end training or enter an integer for the number of additional epochs to run')
-            ans = input()
-
-            if ans == 'H' or ans == 'h':
-                print(f'You entered {ans}, training halted on epoch {epoch + 1}, due to user input\n', flush=True)
-                raise KeyboardInterrupt
-            else:
-                self.ask_epoch += int(ans)
-                if self.ask_epoch > self.epochs:
-                    print('\nYou specified maximum epochs as', self.epochs,
-                          'cannot train for', self.ask_epoch, flush=True)
-                else:
-                    print(f'You entered {ans}, training will continue to epoch {self.ask_epoch}', flush=True)
-
-                    lr = self.optimizer.param_groups[0]['lr']
-                    print(f'Current LR is {lr}, enter C(c) to keep this LR or enter a float number for a new LR')
-
-                    ans = input()
-                    if ans == 'C' or ans == 'c':
-                        print(f'Keeping current LR of {lr}\n')
-                    else:
-                        new_lr = float(ans)
-                        for param_group in self.optimizer.param_groups:
-                            param_group['lr'] = new_lr
-                        print('Changing LR to\n', ans)
-
-
 def train():
     device = get_device()
     print(device)
@@ -369,13 +196,10 @@ def train():
 
     dataset_transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224)),
-        torchvision.transforms.Lambda(custom_clahe_transform),  # increases contrast in a smart way
+        CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),  # increases contrast in a smart way
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
     ])
-
-    serialized_data = dill.dumps(dataset_transforms, protocol=dill.HIGHEST_PROTOCOL, fmode=dill.FILE_FMODE)
-    joblib.dump(serialized_data, '../models_storage/saved_models/transform.joblib', compress=True)
 
     dataset = CustomImageFolder(root=config.root_dir, loader=default_loader, transform=dataset_transforms)
     show_dataset(dataset)
@@ -396,7 +220,7 @@ def train():
         torchvision.transforms.RandomVerticalFlip(),
         torchvision.transforms.RandomRotation(20, interpolation=torchvision.transforms.InterpolationMode.BILINEAR,
                                               expand=False),
-        torchvision.transforms.Lambda(custom_clahe_transform),
+        CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),
         torchvision.transforms.ColorJitter(brightness=.05, contrast=0.5, saturation=.05, hue=.05),
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
@@ -419,7 +243,7 @@ def train():
 
     show_batch(train_loader)
 
-    model = models.ResModel().to(device)
+    model = ResModel().to(device)
     torchsummary.summary(model, (3, 224, 224), batch_size=config.batch_size)
 
     if config.load_trained_model:

@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -36,6 +34,7 @@ class FocalLoss(nn.Module):
         # Small value to avoid numerical instability
         epsilon = 1e-8
 
+        # Normalizing and clipping probabilities to [epsilon, 1 - epsilon] range
         p = torch.clamp(cls_preds.softmax(dim=1), min=epsilon, max=1 - epsilon)
 
         # Compute focal loss
