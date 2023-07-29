@@ -128,15 +128,32 @@ def show_drawn_masks_to_crop(images: Tensor | List[Tensor]) -> None:
     plt.show()
 
 
-def show_box(box, ax):
-    x0, y0 = box[0], box[1]
-    w, h = box[2] - box[0], box[3] - box[1]
-    ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0, 0, 0, 0), lw=2))
+def get_crop_coordinates(box_coords: Tensor, segmented_image_shape: Tuple[int, int, int]) -> Tuple[int, int, int, int]:
+    # Gets the bounding box coordinates
+    x1, y1, x2, y2 = box_coords[0].item(), box_coords[1].item(), box_coords[2].item(), box_coords[3].item()
+    offset_y1, offset_y2, offset_x1, offset_x2 = -2, 2, -2, 2
+
+    height, width = segmented_image_shape[1], segmented_image_shape[2]
+
+    if y1 + offset_y1 > 0:
+        y1 += offset_y1
+
+    if y2 + offset_y2 < height:
+        y2 += offset_y2
+
+    if x1 + offset_x1 > 0:
+        x1 += offset_x1
+
+    if x2 + offset_x2 < width:
+        x2 += offset_x2
+
+    return x1, y1, x2, y2
 
 
 if __name__ == '__main__':
     image = cv2.imread("../deployment/local/client/images_post/corn/blight_corn_451 - Copy.jpg")
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    print(image.shape)
     show_single_image(image)
 
     sam_checkpoint = "../models_storage/pretrained/sam_vit_l_0b3195.pth"
@@ -203,8 +220,8 @@ if __name__ == '__main__':
 
     box_flatten = boxes.flatten().to(torch.int)
 
-    # Crop the image using the bounding box coordinates
-    x1, y1, x2, y2 = box_flatten[0].item(), box_flatten[1].item(), box_flatten[2].item(), box_flatten[3].item()
+    # Crops the segmented image using bounding box coordinates offsets
+    x1, y1, x2, y2 = get_crop_coordinates(box_flatten, segmented_image.shape)
     cropped_image = segmented_image[:, y1:y2, x1:x2]
     print(cropped_image.size())
     show_single_image(cropped_image, axis=False)
