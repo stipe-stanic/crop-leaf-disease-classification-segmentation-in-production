@@ -42,6 +42,7 @@ def plot_images(root_path: str) -> None:
 
     # Loop over the subdirectories and plot the first image from each directory, nrows x ncols >= 34 for all classes
     fig, axes = plt.subplots(nrows=4, ncols=4, figsize=(10, 20))
+    fig.suptitle('Images in height x width shape', fontsize=16, fontweight='bold')
 
     for i, class_dir_name in enumerate(class_dirs_names):
         # Get a list of all the files in the subdirectory and the path of the first image
@@ -49,12 +50,12 @@ def plot_images(root_path: str) -> None:
         image_path = os.path.join(root_path, class_dir_name, files_list[0])
 
         image = image_to_ndarray(image_path)
-        width, height = image.shape[:2]
+        height, width = image.shape[:2]
 
         # Plot the image on the subplot at row i//4, column i%4
         if i < 16:
             axes[i // 4, i % 4].imshow(image)
-            axes[i // 4, i % 4].set_title(f'{class_dir_name}\nDimensions: {width}x{height}')
+            axes[i // 4, i % 4].set_title(f'{class_dir_name}\nDimensions: {height}x{width}')
             axes[i // 4, i % 4].axis('off')
     plt.show()
 

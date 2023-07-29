@@ -239,7 +239,7 @@ def train():
                                               generator=torch.Generator().manual_seed(config.seed))
 
     images_shape, labels_shape = loader_shape(train_loader)
-    print(f'Images shape: {images_shape}\nLabels shape: {labels_shape}')
+    print(f'Images shape: {images_shape}\nLabels shape: {labels_shape}')  # [batch_size, channel, height, width]
 
     show_batch(train_loader)
 
