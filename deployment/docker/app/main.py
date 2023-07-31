@@ -1,9 +1,15 @@
 import io
+import os
+import sys
 import numpy as np
 import torch
-import joblib
+import torchvision
 
+from app.config import class_names
 from app.models import ResModel
+from app.exception_handler import python_exception_handler
+from app.custom_clahe import CustomCLAHE
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,16 +18,37 @@ from PIL import Image
 from torch import Tensor
 
 
-def preprocess(package: dict, input_image: Image) -> Tensor:
-    transform = package['transform']
-    img = transform(input_image)
-    img_tensor = torch.unsqueeze(torch.FloatTensor(img), 0)
+def preprocess(input_image: Image) -> Tensor:
+    """Preprocess an input image using transformations.
+
+    :param input_image: The input image to be preprocessed.
+    :returns: The preprocessed image tensor.
+    """
+
+    dataset_transforms = torchvision.transforms.Compose([
+        torchvision.transforms.Resize((224, 224)),
+        CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),  # increases contrast in a smart way
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
+    ])
+
+    img = dataset_transforms(input_image)
+
+    # Creates a batch dimension
+    img_tensor = torch.unsqueeze(img, 0)
 
     return img_tensor
 
 
 def predict(package: dict, input: Image) -> np.ndarray:
-    x = preprocess(package, input)
+    """Run prediction using a provided model on a preprocessed input image.
+
+    :param package: A dictionary containing the 'model', 'device', and 'transform' objects.
+    :param input: The input image to be classified.
+    :returns: The prediction values for each class as a numpy array.
+    """
+
+    x = preprocess(input)
 
     model = package['model']
     with torch.no_grad():
@@ -41,10 +68,12 @@ class Model(str, Enum):
 app = FastAPI(
     title='ML Model',
     description='Model for classification of plant diseases',
-    version='0.0.1',
+    version='1.0.0',
 )
 
 app.add_middleware(CORSMiddleware, allow_origins=['*'])
+
+app.add_exception_handler(Exception, python_exception_handler)
 
 
 @app.on_event('startup')
@@ -59,7 +88,6 @@ async def startup_event():
     model.eval()
 
     app.package = {
-        'transform': joblib.load('model/transform.joblib'),
         'model': model,
         'device': device
     }
@@ -70,18 +98,52 @@ def home():
     return "API is working as expected"
 
 
+@app.get("/about")
+def show_about():
+    """Get deployment information, for debugging."""
+
+    return {
+        "sys.version": sys.version,
+        "torch.__version__": torch.__version__,
+        "torch.cuda.is_available()": torch.cuda.is_available(),
+        "torch.version.cuda": torch.version.cuda,
+        "torch.backends.cudnn.version()": torch.backends.cudnn.version(),
+        "torch.backends.cudnn.enabled": torch.backends.cudnn.enabled,
+    }
+
+
 @app.post('/predict')
 async def do_prediction(model: Model, file: UploadFile = File(...)) -> dict:
+    """Performs prediction on an uploaded image using a specified model
+
+        :param model: The model to use for prediction.
+        :param file: The uploaded image file.
+        :returns: The dictionary containing the prediction and confidence.
+        """
+
     filename = file.filename
     file_extension = filename.split('.')[-1] in ('jpg', 'png')
     if not file_extension:
         raise HTTPException(status_code=415, detail='Unsupported file provided.')
 
+    # Reads the content of the uploaded file
     content = await file.read()
     image = Image.open(io.BytesIO(content))
 
+    image.save(f'images_uploaded/{filename}')
+
     y = predict(app.package, image)[0]
 
-    pred = ['apple_black_rot', 'apple_cedar_rust', 'apple_healthy', 'apple_scab'][y.argmax()]
+    probabilities = np.exp(y) / np.sum(np.exp(y))
 
-    return {'prediction': pred}
+    # Get the index of the predicted class with the highest probability
+    predicted_class_index = np.argmax(probabilities)
+
+    confidence_percentage = round(probabilities[predicted_class_index] * 100, 4)
+
+    pred = class_names[predicted_class_index]
+
+    return {
+        'prediction': pred,
+        'confidence': confidence_percentage
+    }
