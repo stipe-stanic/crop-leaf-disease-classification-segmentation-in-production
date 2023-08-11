@@ -2,43 +2,15 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import cv2
-import torchvision.transforms.functional as F
 
 from typing import List, Tuple
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
 from torch import Tensor
+from torchvision.utils import draw_bounding_boxes
 from leaf_of_interest_algo import leaf_of_interest_selection
+from torchvision.ops import masks_to_boxes
 
-
-def get_device() -> torch.device:
-    """Get the device for running PyTorch computations.
-
-    :returns: torch.device: The selected device (CPU or GPU).
-    """
-
-    cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if cuda else "cpu")
-
-    return device
-
-
-def show_single_image(image: np.ndarray | Tensor, figsize: Tuple[int, int] = (10, 10), axis: bool = True) -> None:
-    """Plot a single image.
-
-    :param image: The input image, should be in RGB color space.
-    :param figsize: Size of the figure.
-    :param axis: Boolean flag to show coordinates.
-    """
-
-    if isinstance(image, Tensor):
-        image = image.detach()
-        image = F.to_pil_image(image)
-        image = np.asarray(image)
-
-    plt.figure(figsize=figsize)
-    plt.imshow(image)
-    plt.axis(axis)
-    plt.show()
+from segment_util import get_device, show_single_image, prepare_mask_to_crop, crop_segmented_image
 
 
 def show_anns(anns: List[dict], ax) -> None:
@@ -101,8 +73,7 @@ def show_point_grid(point_grid: List[np.ndarray], image: np.ndarray, ax, marker_
 
 
 if __name__ == '__main__':
-    #image = cv2.imread("./5505139.jpg")
-    image = cv2.imread("blight_corn_9.jpg")
+    image = cv2.imread("test_images/blight_corn_406.jpg")
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     print(image.shape)
     show_single_image(image, axis=False)
@@ -127,9 +98,15 @@ if __name__ == '__main__':
     show_point_grid(point_grid, image, ax)
     plt.show()
 
-    mask_generator = SamAutomaticMaskGenerator(sam, points_per_side=None, point_grids=point_grid)
+    min_mask_area = 0.05 * (image.shape[0] * image.shape[1])
+    mask_generator = SamAutomaticMaskGenerator(sam,
+                                               points_per_side=None,
+                                               point_grids=point_grid,
+                                               stability_score_thresh=0.95,
+                                               min_mask_region_area=min_mask_area
+                                               )
     masks = mask_generator.generate(image)
-    print(len(masks))
+    print(f'Number of masks: {len(masks)}')
     display_annotations(image, masks)
 
     leaf_to_segment = leaf_of_interest_selection(masks, image)
@@ -137,3 +114,13 @@ if __name__ == '__main__':
 
     segmented_image = cv2.bitwise_and(image, image, mask=leaf_to_segment['segmentation'].astype(np.uint8))
     show_single_image(segmented_image, axis=False)
+
+    # Splits mask into a set of boolean masks.
+    boxes, segmented_image = prepare_mask_to_crop(leaf_to_segment['segmentation'], segmented_image.copy())
+
+    image_drawn_boxes = draw_bounding_boxes(segmented_image, boxes, colors="red")
+    show_single_image(image_drawn_boxes)
+
+    cropped_image = crop_segmented_image(boxes, segmented_image)
+    print(f'Cropped image size: {cropped_image.size()}')
+    show_single_image(cropped_image, axis=False)
