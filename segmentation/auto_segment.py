@@ -78,6 +78,8 @@ if __name__ == '__main__':
     print(image.shape)
     show_single_image(image, axis=False)
 
+    img_height, img_width = image.shape[0], image.shape[1]
+
     sam_checkpoint = "../models_storage/pretrained/sam_vit_l_0b3195.pth"
     model_type = "vit_l"
 
@@ -89,16 +91,16 @@ if __name__ == '__main__':
 
     # points to specified location in the image (x, y)
     point_grid = [np.array([
-        [0.5, 0.25], [0.25, 0.25], [0.75, 0.25],  # top (left, center, right)
-        [0.5, 0.5], [0.25, 0.5], [0.75, 0.5],  # middle (left, center, right)
-        [0.5, 0.75], [0.25, 0.75], [0.75, 0.75],  # bottom (left, center, right)
+        [0.25, 0.25], [0.5, 0.25], [0.75, 0.25],  # top (left, center, right)
+        [0.25, 0.5], [0.5, 0.5], [0.75, 0.5],  # middle (left, center, right)
+        [0.25, 0.75], [0.5, 0.75], [0.75, 0.75],  # bottom (left, center, right)
         ])]
 
     fig, ax = plt.subplots(figsize=(10, 10))
     show_point_grid(point_grid, image, ax)
     plt.show()
 
-    min_mask_area = 0.05 * (image.shape[0] * image.shape[1])
+    min_mask_area = 0.05 * (img_height * img_width)
     mask_generator = SamAutomaticMaskGenerator(sam,
                                                points_per_side=None,
                                                point_grids=point_grid,

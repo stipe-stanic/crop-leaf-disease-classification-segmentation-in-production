@@ -247,6 +247,7 @@ def generate_aug_images(root_path: str, class_name: str, num_images: int) -> Non
         image_path = os.path.join(class_dir, random_image_file)
 
         image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Applies augmentation using __call__ of instance
         augmented_image = augment(image)

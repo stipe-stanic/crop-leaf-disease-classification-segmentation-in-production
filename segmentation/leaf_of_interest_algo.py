@@ -1,6 +1,6 @@
 import numpy as np
 
-from typing import List, Tuple
+from typing import List
 
 
 def distance_to_image_center(bbox: np.ndarray, image_center_x: float, image_center_y: float) -> float:
@@ -12,7 +12,7 @@ def distance_to_image_center(bbox: np.ndarray, image_center_x: float, image_cent
 
 def leaf_of_interest_selection(masks: List[dict], image: np.ndarray) -> dict:
     if len(masks) == 0:
-        raise ValueError("List of masks is empty")
+        raise ValueError("No masks found")
 
     image_center_x = image.shape[1] / 2
     image_center_y = image.shape[0] / 2
@@ -32,7 +32,7 @@ def leaf_of_interest_selection(masks: List[dict], image: np.ndarray) -> dict:
     mask_area = max(masks, key=lambda x: x['area'])
     mask_area['criterion_winner'].append('area')
 
-    # Calculate the width of each mask and find the mask with the maximum width, height and accuracy
+    # Find the mask with the maximum width, height and accuracy
     mask_width = max(masks, key=lambda x: x['bbox'][2])  # bbox is in XYWH format
     mask_width['criterion_winner'].append('width')
 
@@ -76,5 +76,3 @@ def leaf_of_interest_selection(masks: List[dict], image: np.ndarray) -> dict:
             mask_best = mask
 
     return mask_best
-
-
