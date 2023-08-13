@@ -4,6 +4,14 @@ from typing import List
 
 
 def distance_to_image_center(bbox: np.ndarray, image_center_x: float, image_center_y: float) -> float:
+    """Calculate the Euclidean distance between the center of a bounding box and the center of the image.
+
+    :param bbox: Bounding box coordinates in [x_min, y_min, x_max, y_max] format
+    :param image_center_x: X-coordinate of the image center
+    :param image_center_y: Y-coordinate of the image center
+    :return: Euclidean distance
+    """
+
     x_center = (bbox[0] + bbox[2]) / 2
     y_center = (bbox[1] + bbox[3]) / 2
 
@@ -11,6 +19,13 @@ def distance_to_image_center(bbox: np.ndarray, image_center_x: float, image_cent
 
 
 def leaf_of_interest_selection(masks: List[dict], image: np.ndarray) -> dict:
+    """Select leaf to segment from a list of masks based on criteria.
+
+    :param masks: List of masks, each mask contains segmentation information
+    :param image: Input image
+    :return: Mask representing selected leaf
+    """
+
     if len(masks) == 0:
         raise ValueError("No masks found")
 
@@ -48,11 +63,13 @@ def leaf_of_interest_selection(masks: List[dict], image: np.ndarray) -> dict:
 
     mask_criterion_winners = [mask_area, mask_width, mask_height, mask_accuracy, mask_center]
 
+    # Group masks by ID to filter duplicates
     mask_grouped = {}
     for mask in mask_criterion_winners:
         if mask['id'] not in mask_grouped.keys():
             mask_grouped[mask['id']] = mask
 
+    # Find the mask with the highest combined score
     mask_best = None
     highest_score = 0
     for key in mask_grouped.keys():

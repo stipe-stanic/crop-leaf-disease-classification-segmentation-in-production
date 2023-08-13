@@ -1,15 +1,12 @@
 import numpy as np
-import torch
 import matplotlib.pyplot as plt
 import cv2
 
-from typing import List, Tuple
+from typing import List
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator, SamPredictor
-from torch import Tensor
 from torchvision.utils import draw_bounding_boxes
-from leaf_of_interest_algo import leaf_of_interest_selection
-from torchvision.ops import masks_to_boxes
 
+from leaf_of_interest_algo import leaf_of_interest_selection
 from segment_util import get_device, show_single_image, prepare_mask_to_crop, crop_segmented_image
 
 
@@ -43,7 +40,14 @@ def show_anns(anns: List[dict], ax) -> None:
     ax.imshow(img)
 
 
-def display_annotations(image: np.ndarray, anns: List[dict], axis: bool = True):
+def display_annotations(image: np.ndarray, anns: List[dict], axis: bool = True) -> None:
+    """Display an image with annotated regions.
+
+    :param image: The input image to be displayed
+    :param anns: Masks which contain annotation information
+    :param axis: Whether to show axis ticks and labels
+    """
+
     plt.figure(figsize=(20, 20))
     plt.imshow(image)
     show_anns(anns, plt.gca())
@@ -86,21 +90,23 @@ if __name__ == '__main__':
     device = get_device()
     print(device)
 
+    # Load segment anything model (SAM)
     sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
     sam.to(device=device)
 
-    # points to specified location in the image (x, y)
+    # Define a grid of points for SAM mask generation
     point_grid = [np.array([
         [0.25, 0.25], [0.5, 0.25], [0.75, 0.25],  # top (left, center, right)
         [0.25, 0.5], [0.5, 0.5], [0.75, 0.5],  # middle (left, center, right)
         [0.25, 0.75], [0.5, 0.75], [0.75, 0.75],  # bottom (left, center, right)
         ])]
 
+    # Display point grid on the image
     fig, ax = plt.subplots(figsize=(10, 10))
     show_point_grid(point_grid, image, ax)
     plt.show()
 
-    min_mask_area = 0.05 * (img_height * img_width)
+    min_mask_area = 0.05 * (img_height * img_width)  # to prevent small disconnected mask regions
     mask_generator = SamAutomaticMaskGenerator(sam,
                                                points_per_side=None,
                                                point_grids=point_grid,
@@ -109,6 +115,8 @@ if __name__ == '__main__':
                                                )
     masks = mask_generator.generate(image)
     print(f'Number of masks: {len(masks)}')
+
+    # Display annotation on the original image using generated masks
     display_annotations(image, masks)
 
     leaf_to_segment = leaf_of_interest_selection(masks, image)
@@ -117,9 +125,10 @@ if __name__ == '__main__':
     segmented_image = cv2.bitwise_and(image, image, mask=leaf_to_segment['segmentation'].astype(np.uint8))
     show_single_image(segmented_image, axis=False)
 
-    # Splits mask into a set of boolean masks.
-    boxes, segmented_image = prepare_mask_to_crop(leaf_to_segment['segmentation'], segmented_image.copy())
+    # Split mask into a set of boolean masks.
+    boxes, segmented_image = prepare_mask_to_crop(leaf_to_segment['segmentation'], segmented_image)
 
+    # Draw bounding boxes on the segmented image
     image_drawn_boxes = draw_bounding_boxes(segmented_image, boxes, colors="red")
     show_single_image(image_drawn_boxes)
 
