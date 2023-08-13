@@ -12,10 +12,13 @@ import random
 
 from torchvision.datasets.folder import DatasetFolder
 from torch.utils.data import DataLoader, Subset
+from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 from typing import Tuple, List
 from PIL import Image
 from img_aug_generate import ImgAugGenerate
 from train import config
+from segmentation.leaf_of_interest_algo import leaf_of_interest_selection
+from segmentation.segment_util import prepare_mask_to_crop, crop_segmented_image
 
 
 def rename_subdirs(root_dir: str) -> None:
@@ -304,3 +307,65 @@ def plot_rgb_channel_distribution(root_dir: str) -> None:
     plt.xlabel('Channel')
     plt.ylabel('Pixel values')
     plt.show()
+
+
+def segment_images(root_dir: str, root_dir_segment: str, model_checkpoint: str) -> None:
+    """Segment leaves using the provided model checkpoint and save the cropped images.
+
+    :param root_dir: Root directory to save the segmented images
+    :param root_dir_segment: Root directory containing images to be segmented
+    :param model_checkpoint: Path to the model checkpoint for segmentation
+    """
+
+    sam_checkpoint = model_checkpoint
+    model_type = sam_checkpoint.split('/')[-1][4:9]  # example: 'vit_l'
+
+    cuda = torch.cuda.is_available()
+    device = torch.device("cuda" if cuda else "cpu")
+
+    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+    sam.to(device=device)
+
+    for class_dir in os.scandir(root_dir_segment):
+        if class_dir.is_dir():
+            for i, filename in enumerate(np.asarray(os.listdir(class_dir))):
+                img_path = os.path.join(class_dir, filename)
+
+                image = cv2.imread(img_path)
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+                img_height, img_width = image.shape[0], image.shape[1]
+
+                # points to specified location in the image (x, y)
+                point_grid = [np.array([
+                    [0.25, 0.25], [0.5, 0.25], [0.75, 0.25],  # top (left, center, right)
+                    [0.25, 0.5], [0.5, 0.5], [0.75, 0.5],  # middle (left, center, right)
+                    [0.25, 0.75], [0.5, 0.75], [0.75, 0.75],  # bottom (left, center, right)
+                ])]
+
+                min_mask_area = 0.05 * (img_height * img_width)
+                mask_generator = SamAutomaticMaskGenerator(sam,
+                                                           points_per_side=None,
+                                                           point_grids=point_grid,
+                                                           stability_score_thresh=0.95,
+                                                           min_mask_region_area=min_mask_area
+                                                           )
+                masks = mask_generator.generate(image)
+
+                # Skip processing if no masks are found
+                if len(masks) == 0:
+                    continue
+
+                leaf_to_segment = leaf_of_interest_selection(masks, image)
+                segmented_image = cv2.bitwise_and(image, image, mask=leaf_to_segment['segmentation'].astype(np.uint8))
+
+                boxes, segmented_image = prepare_mask_to_crop(leaf_to_segment['segmentation'], segmented_image.copy())
+
+                # Skip processing if no bounding box is found
+                if boxes.shape[0] == 0:
+                    continue
+
+                cropped_image = crop_segmented_image(boxes, segmented_image)
+
+                save_path = os.path.join(root_dir, class_dir.name, f'{class_dir.name}_segmented_{i + 1}.jpg')
+                plt.imsave(save_path, cropped_image.numpy().transpose(1, 2, 0))
