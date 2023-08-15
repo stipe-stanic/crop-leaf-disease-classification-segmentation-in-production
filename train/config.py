@@ -1,10 +1,10 @@
 root_dir = "../data/plant_dataset_original/plant_diseases_images"
 
 batch_size = 32
-epochs = 22
+epochs = 16
 seed = 255
 
-load_trained_model = False
+load_trained_model = True
 
 focal_loss = {
     'alpha': 0.50,

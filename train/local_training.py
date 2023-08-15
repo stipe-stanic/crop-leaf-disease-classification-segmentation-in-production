@@ -113,17 +113,6 @@ def show_batch(dataset_loader: DataLoader, num_of_images: int = 9) -> None:
         print("Error:", msg)
 
 
-# def custom_clahe_transform(img: Image) -> Image:
-#     """Apply custom Contrast Limited Adaptive Histogram Equalization (CLAHE) transformation to an image.
-#
-#     :param img: The input image to be transformed.
-#     :returns: The transformed image.
-#     """
-#
-#     transform = CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8))
-#     return transform(img)
-
-
 def loader_shape(dataset_loader: DataLoader) -> Tuple[torch.Size, torch.Size]:
     """Print shape of loaded dataset
 

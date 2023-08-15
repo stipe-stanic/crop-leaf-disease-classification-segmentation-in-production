@@ -87,7 +87,7 @@ class ResModel(nn.Module):
 
         self.classifier = nn.Sequential(
             nn.Dropout(p=0.5),
-            nn.Linear(1024, 32)
+            nn.Linear(1024, 31)
         )
 
     def forward(self, x: Tensor) -> Tensor:

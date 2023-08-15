@@ -25,7 +25,7 @@ class CustomCLAHE(object):
 
         img = np.array(img)
 
-        # Converts the image from BGR to LAB color space
+        # Converts the image from RGB to LAB color space
         lab_image = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
         l_channel, a_channel, b_channel = cv2.split(lab_image)
 
@@ -36,7 +36,7 @@ class CustomCLAHE(object):
         # Merges the equalized L channel with original a and b channels
         equalized_lab_image = cv2.merge([equalized_l_channel, a_channel, b_channel])
 
-        # Converts the equalized LAB image back to BGR color space
+        # Converts the equalized LAB image back to RGB color space
         equalized_bgr_image = cv2.cvtColor(equalized_lab_image, cv2.COLOR_LAB2RGB)
 
         return Image.fromarray(equalized_bgr_image)
