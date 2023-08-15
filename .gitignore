@@ -169,7 +169,6 @@ models_storage/
 # deployment local configuration
 deployment/local/config.py
 deployment/local/server/local_log
-deployment/local/client/images_post
 
 # deployment docker configuration
 deployment/docker/model
