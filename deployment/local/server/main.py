@@ -1,8 +1,6 @@
 import io
-import os
 import sys
 import matplotlib.pyplot as plt
-import torchvision
 import uvicorn
 import numpy as np
 import torch
@@ -14,41 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from PIL import Image
 from train.res_model import ResModel
-from torch import Tensor
+
 from local_exception_handler import python_exception_handler
-from custom_clahe import CustomCLAHE
-
-
-def preprocess(input_image: Image) -> Tensor:
-    """Preprocess an input image using a provided transform and return a tensor.
-
-    :param input_image: The input image to be preprocessed.
-    :returns: The preprocessed image tensor.
-    """
-
-    dataset_transforms = torchvision.transforms.Compose([
-        torchvision.transforms.Resize((224, 224)),
-        CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),  # increases contrast in a smart way
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
-    ])
-
-    img = dataset_transforms(input_image)
-    print(img.shape)
-
-    # Converts the transformed image back to PIL Image object
-    transform_back = torchvision.transforms.ToPILImage()
-
-    # Converts the image back to numpy array
-    image_processed = np.asarray(transform_back(img))
-    plt.imshow(image_processed)
-    plt.axis('off')
-    plt.show()
-
-    # Adds an extra dimension
-    img_tensor = torch.unsqueeze(img, 0)
-
-    return img_tensor
+from segmentation.segment import segment_object
+from deployment.local.server.util.preprocessing import preprocess
 
 
 def predict(package: dict, input: Image) -> np.ndarray:
@@ -59,7 +26,8 @@ def predict(package: dict, input: Image) -> np.ndarray:
     :returns: The prediction values for each class as a numpy array.
     """
 
-    x = preprocess(input)
+    x = segment_object(input, package['segment_model_path'])
+    x = preprocess(x)
 
     model = package['model']
     with torch.no_grad():
@@ -95,12 +63,15 @@ async def startup_event():
     logger.info(f'Pytorch using device: {device}')
 
     model = ResModel().to(device)
-    model.load_state_dict(torch.load('../../../models_storage/export_models/ResModel.pth', map_location=device))
+    model.load_state_dict(torch.load('models/ResModel.pth', map_location=device))
     model.eval()
+
+    segment_path = 'models/sam_vit_l_0b3195.pth'
 
     app.package = {
         'model': model,
-        'device': device
+        'device': device,
+        'segment_model_path': segment_path
     }
 
 
