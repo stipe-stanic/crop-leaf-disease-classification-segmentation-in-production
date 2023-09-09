@@ -169,10 +169,10 @@ models_storage/
 # deployment local configuration
 deployment/local/config.py
 deployment/local/server/local_log
-deployment/local/server/models
+deployment/local/server/model_chp
 
 # deployment docker configuration
-deployment/docker/model
+deployment/docker/model_chp
 deployment/docker/app/log
 
 # Script for saving helper function and classes currently not in use

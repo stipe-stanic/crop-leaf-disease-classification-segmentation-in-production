@@ -1,43 +1,19 @@
 import io
-import os
 import sys
 import numpy as np
 import torch
-import torchvision
 
 from app.config import class_names
-from app.models import ResModel
+from app.res_model import ResModel
 from app.exception_handler import python_exception_handler
-from app.custom_clahe import CustomCLAHE
+from app.segmentation.segment import segment_object
+from app.util.preprocessing import preprocess
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from PIL import Image
-from torch import Tensor
-
-
-def preprocess(input_image: Image) -> Tensor:
-    """Preprocess an input image using transformations.
-
-    :param input_image: The input image to be preprocessed.
-    :returns: The preprocessed image tensor.
-    """
-
-    dataset_transforms = torchvision.transforms.Compose([
-        torchvision.transforms.Resize((224, 224)),
-        CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),  # increases contrast in a smart way
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
-    ])
-
-    img = dataset_transforms(input_image)
-
-    # Creates a batch dimension
-    img_tensor = torch.unsqueeze(img, 0)
-
-    return img_tensor
 
 
 def predict(package: dict, input: Image) -> np.ndarray:
@@ -48,7 +24,8 @@ def predict(package: dict, input: Image) -> np.ndarray:
     :returns: The prediction values for each class as a numpy array.
     """
 
-    x = preprocess(input)
+    x = segment_object(input, package['segment_model_path'])
+    x = preprocess(x)
 
     model = package['model']
     with torch.no_grad():
@@ -84,12 +61,15 @@ async def startup_event():
     logger.info(f'Pytorch using device: {device}')
 
     model = ResModel().to(device)
-    model.load_state_dict(torch.load('model/ResModel.pth', map_location=device))
+    model.load_state_dict(torch.load('model_chp/ResModel.pth', map_location=device))
     model.eval()
+
+    segment_path = 'model_chp/sam_vit_l_0b3195.pth'
 
     app.package = {
         'model': model,
-        'device': device
+        'device': device,
+        'segment_model_path': segment_path
     }
 
 

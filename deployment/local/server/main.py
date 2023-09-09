@@ -11,8 +11,8 @@ from fastapi.logger import logger
 from fastapi.middleware.cors import CORSMiddleware
 from enum import Enum
 from PIL import Image
-from train.res_model import ResModel
 
+from res_model import ResModel
 from local_exception_handler import python_exception_handler
 from segmentation.segment import segment_object
 from deployment.local.server.util.preprocessing import preprocess
@@ -63,10 +63,10 @@ async def startup_event():
     logger.info(f'Pytorch using device: {device}')
 
     model = ResModel().to(device)
-    model.load_state_dict(torch.load('models/ResModel.pth', map_location=device))
+    model.load_state_dict(torch.load('model_chp/ResModel.pth', map_location=device))
     model.eval()
 
-    segment_path = 'models/sam_vit_l_0b3195.pth'
+    segment_path = 'model_chp/sam_vit_l_0b3195.pth'
 
     app.package = {
         'model': model,
