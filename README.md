@@ -6,12 +6,12 @@
 - The dataset contains 31 crop classes. For each plant, there is one class indicating a healthy crop, except for the orange, and one or more classes indicating crop diseases. Corn images contain real examples from the field, which means that the leaves are present in the image along with the rest of the background.
 - After applying preprocessing steps on the dataset, including cleaning, segmentation, augmentation and undersampling, the data distribution has the most significant imbalance ratio of 1:4.
 
-<img alt="The dataset after preprocessing steps" height=50% src="/plot_images/dataset/data_distribution_trimmed_and_augmented.png" width=50%/>
+<p align="center"><img alt="The dataset after preprocessing steps" height=50% src="/plot_images/dataset/data_distribution_trimmed_and_augmented.png" width=50%/></p>
 
 ## Segmentation model
-- An automatic segmentation system has been implemented utilizing SAM. The prompt used is a modified matrix of foreground points, and an ROI algorithm is employed to select the most suitable leaf for further processing.
+- An automatic segmentation system has been implemented utilizing SAM. The prompt used is a modified matrix of foreground points, and an selection algorithm is employed to select the most suitable leaf for further processing.
 
-<img alt="Foreground point matrix" height=50% src="/plot_images/segmentation/foreground_point_matrix.png" width=50%/>
+<p align="center"><img alt="Foreground point matrix" height=50% src="/plot_images/segmentation/foreground_point_matrix.png" width=50%/></p>
 
 ## Classification model
 - Residual network architecture is used, featuring a total of 63 layers, with the last layer having 1024 input units. This architecture consists of 5 convolutional blocks, 5 residual blocks and 2 linear blocks, overall the model has 37 million parameters.
@@ -24,10 +24,10 @@
 - Four methods are used for the evaluation of the classification model: AUC ROC, Cohen kappa score, F1 score and Confusion matrix
 - The Model achieves an AUC ROC value of 0.99, which indicates the model's outstanding ability to distinguish between positive and negative instances. The model also achieves a Kohen cappa score of 0.99 which indicates almost a perfect agreement. 
 
-<img alt="Classification report" height=50% src="/plot_images/training/classification_report_heatmap.png" width=50%/>
+<p align="center"><img alt="Classification report" height=50% src="/plot_images/training/classification_report_heatmap.png" width=50%/></p>
 
-<img alt="Confusion matrix" height=50% src="/plot_images/training/confusion_matrix.png" width=50%/>
+<p align="center"><img alt="Confusion matrix" height=50% src="/plot_images/training/confusion_matrix.png" width=50%/></p>
 
 ## Deployment
-A docker image has been created with all dependencies required for deployment. Testing of the deployment was done on Google Cloud to validate stability and performance. Communication is achieved through the FastAPI application.
+- A docker image has been created with all dependencies required for deployment. Testing of the deployment was done on Google Cloud to validate stability and performance. Communication is achieved through the FastAPI application.
 
