@@ -96,7 +96,7 @@ def show_drawn_masks_to_crop(images: Tensor | List[Tensor]) -> None:
 
 
 if __name__ == '__main__':
-    image = cv2.imread("../deployment/local/client/images_post/corn/blight_corn_451.jpg")
+    image = cv2.imread("test_images/blight_corn_453.jpg")
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     print(f'Image shape: {image.shape}')
     show_single_image(image)
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     predictor = SamPredictor(sam)
     predictor.set_image(image)
 
-    input_point = np.array([[400, 600]])  # points to specified location in the image (x, y)
+    input_point = np.array([[800, 800]])  # points to specified location in the image (x, y)
     input_label = np.array([1])  # 1: foreground point, 0: background point
 
     plt.figure(figsize=(10, 10))

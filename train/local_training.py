@@ -21,6 +21,7 @@ from train_util.custom_clahe import CustomCLAHE
 from train_util.plotting import plot_confusion_matrix, plot_classification_report
 from res_model import ResModel
 from train_util.lr_ask import LR_ASK
+from util import get_mean_std_of_pixel_values
 
 
 def valid_file(filename: str) -> bool:
@@ -71,7 +72,7 @@ class CustomImageFolder(torchvision.datasets.DatasetFolder):
 def show_dataset(dataset: DatasetFolder | Subset, n=6) -> None:
     """Show grid of images as a single image
 
-    :param dataset: Loaded torchvision dataset
+    :param dataset: Loaded dataset
     :param n: Number of rows and columns
     """
 
@@ -185,9 +186,9 @@ def train():
 
     dataset_transforms = torchvision.transforms.Compose([
         torchvision.transforms.Resize((224, 224)),
-        CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),  # increases contrast in a smart way
+        CustomCLAHE(clip_limit=2.0, tile_grid_size=(8, 8)),
         torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(mean=(0.4914, 0.4822, 0.4465), std=(0.2023, 0.1994, 0.2010))
+        torchvision.transforms.Normalize(mean=0.4874, std=0.204)
     ])
 
     dataset = CustomImageFolder(root=config.root_dir, loader=default_loader, transform=dataset_transforms)

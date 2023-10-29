@@ -118,53 +118,38 @@ def resize_image(img, target_size: Tuple[int, int]) -> Image:
     return padded_img
 
 
-def get_mean_std_of_pixel_values(root_dir: str) -> Tuple[np.ndarray, np.ndarray]:
-    """Calculate the mean and standard deviation of pixel values in the dataset.
+def get_mean_std_of_pixel_values(train_subset: Subset, dataset: DatasetFolder) -> Tuple[np.ndarray, np.ndarray]:
+    """Calculate the mean and standard deviation of pixel values in the training dataset.
 
-    :param root_dir: The root directory of the dataset.
-    :returns: Tuple containing the mean and standard deviation of pixel values as NumPy arrays.
-    :raises: ValueError if no images were found in the dataset.
-    """
+   :param train_subset: Subset of the data.
+   :param dataset: The dataset containing images.
+   :returns: Tuple containing the mean and standard deviation of pixel values as NumPy arrays.
+   :raises: ValueError if no images were found in the dataset.
+   """
 
     # Initializes variables for accumulating mean and std
-    n_images = 0
+    n_images = len(train_subset)
+    if n_images == 0:
+        raise ValueError("No images found in the dataset")
+
     total_mean = np.zeros((3, ))
     total_std = np.zeros((3, ))
 
-    # Iterates over images in directory
-    for class_dir in os.scandir(root_dir):
-        i = 0
-        if class_dir.is_dir():
-            # Limits the number of images per class to reduce processing time
-            for filename in os.listdir(class_dir):
-                if i > 100:
-                    break
-                img_path = os.path.join(class_dir, filename)
-                img = Image.open(img_path)
+    for image_idx in train_subset.indices:
+        img, _ = dataset[image_idx]
 
-                img = resize_image(img, (224, 224))
+        # Gets pixel values as a list
+        img_array = np.array(img).reshape((224, 224, 3))
 
-                # Gets pixel values as a list
-                pixel_list = list(img.getdata())
-                img_array = np.array(pixel_list).reshape((224, 224, 3))
+        # Accumulates mean value and standard deviation for each channel
+        mean = np.mean(img_array, axis=(0, 1))
+        std = np.std(img_array, axis=(0, 1))
 
-                # Normalizes the pixel values to the range [0, 1]
-                img_array = img_array.astype(np.float32) / 255.0
+        total_mean += mean
+        total_std += std
 
-                # Accumulates mean value and standard deviation for each channel
-                mean = np.mean(img_array, axis=(0, 1))
-                std = np.std(img_array, axis=(0, 1))
-
-                total_mean += mean
-                total_std += std
-                n_images += 1
-                i += 1
-
-    if n_images > 0:
-        mean_pixel_values = total_mean / n_images
-        std_pixel_values = total_std / n_images
-    else:
-        raise ValueError("No images found in dataset")
+    mean_pixel_values = total_mean / n_images
+    std_pixel_values = total_std / n_images
 
     return mean_pixel_values, std_pixel_values
 
